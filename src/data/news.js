@@ -1,0 +1,47 @@
+// News ticker pool. Strings are plain flavor. Functions receive state and can
+// return contextual headlines based on what's actually happening.
+
+export const NEWS_POOL = [
+  "Norway goes 100% EV. Remaining oil exports 'for the rest of you'.",
+  "Saudi Arabia unveils 'Green Oil'. Scientists squint.",
+  "Germany reinvents the bicycle, brands it Fahrrad 2.0.",
+  "TikTok trend #HeatPumpDance credited with 40% adoption spike.",
+  "COP-47 delegates arrive in electric private jets.",
+  "Exxon pivots to 'energy solutions'. Stock up 30%.",
+  "China installs more solar in a week than France has in total.",
+  "Billionaire launches Inspect-the-Climate rocket. Emits 40kt CO2.",
+  "Scientists confirm trees still absorb carbon. 847-page paper.",
+  "Oil CEO tearfully admits 'we knew'. Asks for bailout.",
+  "Beavers hired by government, exceed every KPI.",
+  "Solar farm fails to impress cat. Cat still naps on it.",
+  "Lobbyist caught rebranding as 'Chief Stakeholder Officer'.",
+  "COP delegates debate meaning of word 'shall'. Enter day 14.",
+  "Heat pump installer becomes nation's most-requested profession.",
+  "Airline introduces 'optional emissions'. Unclear what that means.",
+  "Small nuclear reactor approved. Local moose thriving.",
+  "Mayor replaces six-lane highway with park. Commute times drop.",
+  "Carbon price doubled overnight. Emissions drop, yachts unaffected.",
+  "Denmark runs on wind for entire month. Asks if anyone noticed.",
+  "Insurance industry: 'OK now we're worried.'",
+  "Regenerative farm outperforms chemical one. Farmers take notes.",
+  "Hydrogen hub accidentally splits water, exactly as planned.",
+  "Fossil fuel subsidy cut. Finance minister visibly taller.",
+  "Oil CEO tries eating steak made of air. Describes it as 'not bad'.",
+  "Electric aviation prototype flies. Pilot forgets to turn off AC.",
+  "Supreme Court rules climate 'a thing'. 5-4 decision.",
+  "Youth strike now daily. Schools add climate to curriculum, finally.",
+  "Petrostate announces 'Vision 2075'. Observers note date.",
+  "Mangrove restoration exceeds targets. Mangroves unavailable for comment.",
+  "Cement industry invents cement without cement. Patent pending.",
+  "Cargo ship sets sail. Literally. First wind-powered freight in a century.",
+  "Cryptocurrency miner converts to running heat pumps. Honest work.",
+  "Climate skeptic hedge fund announces climate strategy. Unclear how.",
+  (s) => s.world.tempAnomalyC > 1.9 ? "Arctic ice season shortens again. Polar bear lawyers up." : null,
+  (s) => s.world.tempAnomalyC < 1.5 ? "Temperature trend reverses. Cautious optimism detected." : null,
+  (s) => s.world.co2ppm < 410 ? "CO2 readings dip below 410 ppm. Mauna Loa staff high-five." : null,
+  (s) => {
+    const nz = Object.values(s.countries).filter(c => c.netZero).length;
+    return nz >= 3 ? `${nz} countries at Net Zero. Rivalry talk intensifies.` : null;
+  },
+  (s) => s.world.climatePoints > 80 ? "Climate ministries flush with funds. Contractor scam attempts spike." : null,
+];

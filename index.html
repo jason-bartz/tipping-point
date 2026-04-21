@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="A strategy game where you fight to decarbonize the planet. Plague Inc, inverted: spread solutions instead of contagion." />
+<meta name="theme-color" content="#5cb3d6" />
+<title>Tipping Point</title>
+</head>
+<body>
+
+<!-- COUNTRY SELECT SCREEN -->
+<div class="screen active" id="country-screen">
+  <div class="title-card wide" id="title-root">
+    <!-- rendered by CountrySelect.js -->
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="game">
+  <div class="hud" id="hud-root"></div>
+  <div id="news-bar"></div>
+  <div id="left-panel"></div>
+  <div id="map-container"><div class="loading">Loading world map…</div></div>
+  <div id="right-panel"></div>
+  <div id="status-bar">
+    <span title="Global emissions in gigatons of CO₂ per year. ~40 Gt today. Falls as countries adopt clean activities.">Emissions: <span class="emissions" id="emissions-val">40.0 GtCO₂/yr</span></span>
+    <span id="reversal-indicator" title="Win condition tracker. CO₂ must peak, then drop at least 8 ppm below its peak while the world decarbonizes. Hit that + temp ceiling + Net Zero % and you win.">Peak CO₂: — · Drop: —</span>
+    <span class="hud-spacer" style="flex:1"></span>
+    <span id="research-summary" title="Activities you've unlocked. Research in the left panel; deploy to countries in the right panel.">Researched: 0</span>
+  </div>
+</div>
+
+<!-- END SCREEN -->
+<div class="screen" id="end-screen"><div class="end-card" id="end-card"></div></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "name": "greenprint",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "A Plague Inc-style strategy game where you fight to decarbonize the planet.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:analyze": "ANALYZE=1 vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "lint": "eslint \"src/**/*.js\" \"*.config.js\"",
+    "lint:fix": "eslint \"src/**/*.js\" \"*.config.js\" --fix",
+    "format": "prettier --write \"src/**/*.{js,css,json}\" \"*.{json,md,js}\"",
+    "format:check": "prettier --check \"src/**/*.{js,css,json}\" \"*.{json,md,js}\"",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@fontsource/press-start-2p": "^5.2.7",
+    "@fontsource/vt323": "^5.2.7",
+    "d3-geo": "^3.1.1",
+    "d3-selection": "^3.0.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "jsdom": "^29.0.2",
+    "prettier": "^3.4.2",
+    "rollup-plugin-visualizer": "^5.14.0",
+    "typescript": "^5.7.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.5"
+  }
+}

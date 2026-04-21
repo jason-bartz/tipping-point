@@ -1,0 +1,31 @@
+/* Icons — 1-bit pixel art sprites converted to pixel-perfect SVGs (each dark
+   pixel is an explicit <rect>, so scaling is sharp at any size). Rendered as
+   CSS masks so they inherit currentColor from the branch/button palette. */
+.gi {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.14em;
+  background-color: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.gi-lg { width: 1.35em; height: 1.35em; vertical-align: -0.28em; }
+
+.gi-energy    { mask-image: url('/icons/energy.svg');    -webkit-mask-image: url('/icons/energy.svg'); }
+.gi-transport { mask-image: url('/icons/transport.svg'); -webkit-mask-image: url('/icons/transport.svg'); }
+.gi-industry  { mask-image: url('/icons/industry.svg');  -webkit-mask-image: url('/icons/industry.svg'); }
+.gi-land      { mask-image: url('/icons/land.svg');      -webkit-mask-image: url('/icons/land.svg'); }
+.gi-capture   { mask-image: url('/icons/capture.svg');   -webkit-mask-image: url('/icons/capture.svg'); }
+.gi-policy    { mask-image: url('/icons/policy.svg');    -webkit-mask-image: url('/icons/policy.svg'); }
+.gi-sprout    { mask-image: url('/icons/sprout.svg');    -webkit-mask-image: url('/icons/sprout.svg'); }
+.gi-leaf      { mask-image: url('/icons/leaf.svg');      -webkit-mask-image: url('/icons/leaf.svg'); }
+.gi-star      { mask-image: url('/icons/star.svg');      -webkit-mask-image: url('/icons/star.svg'); }
+.gi-diamond   { mask-image: url('/icons/diamond.svg');   -webkit-mask-image: url('/icons/diamond.svg'); }
+.gi-stopwatch { mask-image: url('/icons/stopwatch.svg'); -webkit-mask-image: url('/icons/stopwatch.svg'); }
+.gi-pie       { mask-image: url('/icons/pie.svg');       -webkit-mask-image: url('/icons/pie.svg'); }
