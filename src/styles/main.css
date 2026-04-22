@@ -2759,4 +2759,215 @@
     .wildfire-layer { display: none; }
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     MOBILE / TOUCH SUPPORT
+     ───────────────────────────────────────────────────────────────────────
+     Every rule in this section lives inside a media query so desktop is
+     literally untouched. Three triggers:
+       - (max-width: 900px)              → narrow layout (grid collapse, drawers)
+       - (pointer: coarse)               → touch ergonomics (bigger targets)
+       - (pointer: coarse) + portrait    → block play, show rotate prompt
+     Mobile FABs + rotate overlay + drawer backdrop are hidden by default below,
+     shown only inside the mobile queries. ═══════════════════════════════ */
 
+  /* Default-hidden mobile chrome. */
+  .mobile-fab { display: none; }
+  #mobile-drawer-backdrop { display: none; }
+  #rotate-overlay { display: none; }
+
+  /* ── Rotate prompt (portrait touch only) ────────────────────────────── */
+  @media (pointer: coarse) and (orientation: portrait) {
+    #rotate-overlay {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      padding: 40px 24px; text-align: center; z-index: 9999;
+      background: var(--surface-3); color: var(--surface-ink);
+      font-family: var(--font-body);
+      /* Safe-area padding for notched devices in portrait. */
+      padding-top: max(40px, env(safe-area-inset-top));
+      padding-bottom: max(40px, env(safe-area-inset-bottom));
+    }
+    #rotate-overlay .rotate-card {
+      max-width: 420px; background: var(--surface-2); color: var(--text);
+      border: 4px solid var(--line); padding: 28px 24px;
+      box-shadow: var(--shadow-lg);
+    }
+    #rotate-overlay .rotate-icon {
+      font-size: 64px; line-height: 1; margin-bottom: 14px;
+      color: var(--line);
+      animation: gpRotateHint 2.6s ease-in-out infinite;
+    }
+    #rotate-overlay h2 {
+      margin: 0 0 12px; font-family: var(--font-display);
+      font-size: var(--t-head); letter-spacing: 1px; color: var(--line);
+    }
+    #rotate-overlay p {
+      margin: 0; font-size: var(--t-body); line-height: 1.5;
+    }
+    /* Block all other content from being seen/interacted with. */
+    body > *:not(#rotate-overlay) {
+      pointer-events: none;
+    }
+  }
+  @keyframes gpRotateHint {
+    0%, 100% { transform: rotate(0); }
+    45%, 55% { transform: rotate(90deg); }
+  }
+
+  /* ── Touch-device globals ─────────────────────────────────────────────
+     Disable double-tap-zoom and pull-to-refresh that would otherwise
+     interfere with map drag/zoom and drawer swipes. */
+  @media (pointer: coarse) {
+    html, body {
+      touch-action: manipulation;
+      overscroll-behavior: none;
+    }
+    #map-container {
+      /* Prevent browser pan/zoom gestures on the map itself — country taps
+         still fire via click. */
+      touch-action: none;
+    }
+  }
+
+  /* ── Touch target ergonomics ─────────────────────────────────────────
+     44×44 WCAG minimum. Applied only on coarse-pointer devices so desktop
+     button sizing is preserved. */
+  @media (pointer: coarse) {
+    .modal-close { width: 44px; height: 44px; font-size: 22px; }
+    .hud-toolbtn { min-width: 44px; min-height: 44px; }
+    .hud-speed { height: 44px; }
+    .hud-speed button { min-width: 48px; }
+    .rt-tab { min-height: 44px; }
+    .starter-select-btn, .intro-cta, .intro-cta-ghost, .pick-back,
+    .again, .end-share, .end-achievements,
+    .achievements-dismiss { min-height: 44px; }
+  }
+
+  /* ── Narrow-width layout (phone landscape, tablet portrait) ──────────
+     Game grid collapses to single column. Side panels escape the grid and
+     become bottom-sheet drawers, accessed via FABs. Triggered by width
+     (not pointer), so a resized desktop window also exercises this path —
+     which is useful for devs but harmless since FABs are only shown when
+     this media query applies. */
+  @media (max-width: 900px) {
+    /* Collapse game grid to single-column stack. */
+    #game {
+      grid-template-rows: 56px 26px 1fr 28px;
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "hud"
+        "news"
+        "map"
+        "status";
+      /* Safe-area on notched phones in landscape — notch sits on the left
+         or right, so we pad horizontally. */
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    /* Panels leave the grid flow, become fixed-position drawers that slide
+       up from the bottom. Off-screen by default; `.mobile-open` slides in. */
+    #left-panel, #right-panel {
+      position: fixed;
+      left: 0; right: 0; bottom: 0; top: auto;
+      width: 100%;
+      height: min(78vh, 520px);
+      z-index: 40;
+      border: 3px solid var(--line);
+      border-bottom: none;
+      transform: translateY(100%);
+      transition: transform 220ms cubic-bezier(0.25, 0.45, 0.4, 1);
+      box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35);
+      /* Override the desktop's grid-area placement. */
+      grid-area: auto;
+      /* Respect safe-area at the bottom when a drawer is open. */
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #left-panel.mobile-open,
+    #right-panel.mobile-open {
+      transform: translateY(0);
+    }
+
+    /* Backdrop behind the open drawer. Dims the game, catches dismiss taps. */
+    #mobile-drawer-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.48);
+      z-index: 35;
+      animation: gpFadeIn 180ms ease-out;
+    }
+    #mobile-drawer-backdrop.active { display: block; }
+
+    /* FABs: floating toggles that sit above the map. Left = Research drawer,
+       right = Country drawer. Only shown when #game is active. */
+    #game.active ~ .mobile-fab {
+      display: inline-flex;
+    }
+    .mobile-fab {
+      position: fixed;
+      bottom: calc(40px + env(safe-area-inset-bottom));
+      z-index: 32;
+      align-items: center; justify-content: center;
+      min-height: 44px; padding: 8px 14px;
+      background: var(--surface-2); color: var(--line);
+      border: 3px solid var(--line);
+      font-family: var(--font-display); font-size: var(--fs-d-xs);
+      font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      box-shadow: var(--shadow);
+      cursor: pointer; border-radius: 0;
+    }
+    .mobile-fab:active { box-shadow: var(--shadow-press); filter: brightness(0.94); }
+    .mobile-fab-left  { left: calc(12px + env(safe-area-inset-left)); }
+    .mobile-fab-right { right: calc(12px + env(safe-area-inset-right)); }
+    /* Hide FABs while the matching drawer is open — the drawer itself is the
+       affordance to close (tap backdrop, or swipe down later). */
+    body.drawer-open-left  .mobile-fab-left,
+    body.drawer-open-right .mobile-fab-right { display: none; }
+
+    /* HUD compaction: stats row scrolls horizontally, chips shrink.
+       Everything still reachable; just not all on screen at once. */
+    .hud { padding: 0 6px; gap: 6px; }
+    .hud-stats {
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .hud-stats::-webkit-scrollbar { display: none; }
+    .hud-block { padding: 4px 8px; height: 40px; min-width: 74px; }
+    .hud-block.hud-pop { min-width: 140px; }
+    .hud-block > span { font-size: var(--fs-sm); }
+
+    /* Status bar compacts. */
+    #status-bar {
+      font-size: 11px; gap: 10px; padding: 0 10px;
+      padding-left: max(10px, env(safe-area-inset-left));
+      padding-right: max(10px, env(safe-area-inset-right));
+    }
+
+    /* Modal cards: drop the playful rotation, widen to viewport. */
+    .modal-card {
+      transform: none !important;
+      max-width: calc(100vw - 24px);
+      width: calc(100vw - 24px);
+      padding: 20px 18px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+    .modal-card > .modal-close { transform: none; }
+    .modal-card > .modal-close:hover  { transform: translate(-1px, -1px); }
+    .modal-card > .modal-close:active { transform: translate(1px, 1px); }
+
+    /* Tutorial, end-card, country-select tweaks. */
+    .tutorial-card, .end-card { max-width: calc(100vw - 24px); }
+  }
+  @keyframes gpFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Very narrow (<600px) — extra compaction for small phones in landscape. */
+  @media (max-width: 600px) {
+    #game { grid-template-rows: 48px 24px 1fr 24px; }
+    .hud-block label { font-size: 7px; }
+    .hud-block { padding: 3px 6px; min-width: 68px; height: 36px; }
+    .hud-block > span { font-size: 12px; }
+    #status-bar { font-size: 10px; }
+    .hud-toolbtn-sm img.hud-icon { width: 18px; height: 18px; }
+  }

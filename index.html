@@ -30,7 +30,7 @@
 <meta property="og:image:type" content="image/png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="Tipping Point — a pixel-art landscape split down the middle: a scenic green world on the left, a smoking, cracked wasteland on the right. The game's wordmark sits across the divide above the tagline 'Decarbonize the planet before +4°C. Research, deploy, reverse the curve.'" />
+<meta property="og:image:alt" content="Tipping Point — a pixel-art landscape split down the middle: a scenic green world on the left, a smoking, cracked wasteland on the right. The game's wordmark sits across the divide above the tagline 'Spread the solutions. Save the planet. Research, deploy, reverse the curve.'" />
 <meta property="og:locale" content="en_US" />
 
 <!-- Twitter -->
@@ -38,7 +38,7 @@
 <meta name="twitter:title" content="Tipping Point — A Climate Strategy Game" />
 <meta name="twitter:description" content="Race to decarbonize the planet before +4°C. A free browser-based strategy game." />
 <meta name="twitter:image" content="https://playtippingpoint.com/og-image.png" />
-<meta name="twitter:image:alt" content="Tipping Point — a pixel-art landscape split down the middle: a scenic green world on the left, a smoking, cracked wasteland on the right. The game's wordmark sits across the divide above the tagline 'Decarbonize the planet before +4°C. Research, deploy, reverse the curve.'" />
+<meta name="twitter:image:alt" content="Tipping Point — a pixel-art landscape split down the middle: a scenic green world on the left, a smoking, cracked wasteland on the right. The game's wordmark sits across the divide above the tagline 'Spread the solutions. Save the planet. Research, deploy, reverse the curve.'" />
 
 <!-- Structured data: VideoGame -->
 <script type="application/ld+json">
@@ -104,6 +104,24 @@
 
 <!-- END SCREEN -->
 <div class="screen" id="end-screen"><div class="end-card" id="end-card"></div></div>
+
+<!-- Mobile drawer toggles (left = Research/Advisors, right = Country/Decisions).
+     Hidden on desktop via CSS; rendered for all devices so touch-landscape users
+     see them without needing JS feature detection. -->
+<button id="mobile-toggle-left"  class="mobile-fab mobile-fab-left"  type="button" aria-label="Open research and advisors panel">☰ Research</button>
+<button id="mobile-toggle-right" class="mobile-fab mobile-fab-right" type="button" aria-label="Open country and decisions panel">Country ☰</button>
+
+<!-- Backdrop for mobile drawers. Click to close. -->
+<div id="mobile-drawer-backdrop" aria-hidden="true"></div>
+
+<!-- Portrait-orientation block on touch devices. Landscape only, force on mobile. -->
+<div id="rotate-overlay" role="dialog" aria-modal="true" aria-labelledby="rotate-title">
+  <div class="rotate-card">
+    <div class="rotate-icon" aria-hidden="true">↻</div>
+    <h2 id="rotate-title">Rotate your device</h2>
+    <p>Tipping Point is designed for landscape. Turn your phone sideways to play.</p>
+  </div>
+</div>
 
 <script type="module" src="/src/main.js"></script>
 </body>

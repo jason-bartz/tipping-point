@@ -654,6 +654,42 @@ function returnToSelect() {
   renderCountrySelect({ onStart: newGame, onResume: resumeGame, onLoadSlot: loadSlot });
 }
 
+// ─── Mobile drawer controller ────────────────────────────────────────────
+// On narrow viewports the CSS reclassifies #left-panel and #right-panel as
+// fixed-position bottom sheets that are off-screen until `.mobile-open`.
+// The FABs (#mobile-toggle-left/right) and the shared backdrop are only
+// painted at max-width: 900px, so this installer is a no-op on desktop —
+// the handlers attach but nothing fires because the elements are display:none.
+(function installMobileDrawers() {
+  const left     = document.getElementById('left-panel');
+  const right    = document.getElementById('right-panel');
+  const backdrop = document.getElementById('mobile-drawer-backdrop');
+  const togLeft  = document.getElementById('mobile-toggle-left');
+  const togRight = document.getElementById('mobile-toggle-right');
+  if (!left || !right || !backdrop || !togLeft || !togRight) return;
+
+  const close = () => {
+    left.classList.remove('mobile-open');
+    right.classList.remove('mobile-open');
+    backdrop.classList.remove('active');
+    document.body.classList.remove('drawer-open-left', 'drawer-open-right');
+  };
+  const open = (side) => {
+    close();
+    (side === 'left' ? left : right).classList.add('mobile-open');
+    backdrop.classList.add('active');
+    document.body.classList.add(side === 'left' ? 'drawer-open-left' : 'drawer-open-right');
+  };
+
+  togLeft.addEventListener('click',  () => open('left'));
+  togRight.addEventListener('click', () => open('right'));
+  backdrop.addEventListener('click', close);
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (left.classList.contains('mobile-open') || right.classList.contains('mobile-open')) close();
+  });
+})();
+
 // ─── Boot ────────────────────────────────────────────────────────────────
 applyAccessibilityFlags();
 // Replay-link support: ?country=DEU&seed=12345 starts that exact game. We
