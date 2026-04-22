@@ -17,6 +17,8 @@ const CLS = {
   largeText:    'gp-large-text',
 };
 
+const AUTO_COLLECT_KEY = 'tipping-point.gameplay.autoCollect.v1';
+
 function readFlag(key) {
   try { return localStorage.getItem(key) === '1'; }
   catch { return false; }
@@ -25,6 +27,12 @@ function readFlag(key) {
 function writeFlag(key, v) {
   try { localStorage.setItem(key, v ? '1' : '0'); }
   catch { /* ignore */ }
+}
+
+// Read the auto-collect preference. CollectableSystem calls this at claim
+// time, so toggling the setting takes effect immediately for pending pickups.
+export function readAutoCollect() {
+  return readFlag(AUTO_COLLECT_KEY);
 }
 
 // Apply stored accessibility flags to the document root. Safe to call on every
@@ -36,7 +44,7 @@ export function applyAccessibilityFlags() {
   root.classList.toggle(CLS.largeText,    readFlag(KEYS.largeText));
 }
 
-export function showSettings({ board, music, state, onMuteChanged, onLoadSlot } = {}) {
+export function showSettings({ board, music, fireAmbience, state, onMuteChanged, onLoadSlot } = {}) {
   if (document.querySelector('.settings-modal')) return;
 
   const sfxVol   = Math.round((board?.volume ?? 0.95) * 100);
@@ -45,6 +53,7 @@ export function showSettings({ board, music, state, onMuteChanged, onLoadSlot } 
   const reduceMotion = readFlag(KEYS.reduceMotion);
   const highContrast = readFlag(KEYS.highContrast);
   const largeText    = readFlag(KEYS.largeText);
+  const autoCollect  = readFlag(AUTO_COLLECT_KEY);
 
   const modal = document.createElement('div');
   modal.className = 'modal settings-modal';
@@ -107,6 +116,19 @@ export function showSettings({ board, music, state, onMuteChanged, onLoadSlot } 
     </div>
 
     <div class="settings-section">
+      <div class="settings-section-title">Gameplay</div>
+
+      <label class="settings-row settings-row-toggle">
+        <span class="settings-label">Auto-collect
+          <span class="settings-sub">Collectables are picked up automatically after a short delay.</span>
+        </span>
+        <button class="settings-toggle ${autoCollect ? 'on' : ''}" type="button" data-toggle="autoCollect" aria-pressed="${autoCollect}">
+          <span class="settings-toggle-track"><span class="settings-toggle-thumb"></span></span>
+        </button>
+      </label>
+    </div>
+
+    <div class="settings-section">
       <div class="settings-section-title">Saves</div>
       <div class="settings-row settings-row-toggle">
         <span class="settings-label">Save slots
@@ -148,6 +170,7 @@ export function showSettings({ board, music, state, onMuteChanged, onLoadSlot } 
     const pct = Number(sfxSlider.value);
     sfxVal.textContent = String(pct);
     board?.setVolume?.(pct / 100);
+    fireAmbience?.setVolume?.(pct / 100);
   });
   sfxSlider.addEventListener('change', () => {
     // Preview beep at the new level so the player can hear the change.
@@ -173,6 +196,7 @@ export function showSettings({ board, music, state, onMuteChanged, onLoadSlot } 
   wireToggle(modal.querySelector('[data-toggle="mute"]'), (on) => {
     board?.setMuted?.(on);
     music?.setMuted?.(on);
+    fireAmbience?.setMuted?.(on);
     onMuteChanged?.(on);
   });
 
@@ -183,19 +207,26 @@ export function showSettings({ board, music, state, onMuteChanged, onLoadSlot } 
     });
   }
 
+  wireToggle(modal.querySelector('[data-toggle="autoCollect"]'), (on) => {
+    writeFlag(AUTO_COLLECT_KEY, on);
+  });
+
   // Reset.
   modal.querySelector('.settings-reset').addEventListener('click', () => {
     board?.setVolume?.(0.95);
     music?.setVolume?.(0.35);
     board?.setMuted?.(false);
     music?.setMuted?.(false);
+    fireAmbience?.setVolume?.(0.95);
+    fireAmbience?.setMuted?.(false);
     for (const [flag, key] of Object.entries(KEYS)) {
       writeFlag(key, false);
       document.documentElement.classList.remove(CLS[flag]);
     }
+    writeFlag(AUTO_COLLECT_KEY, false);
     onMuteChanged?.(false);
     close();
-    showSettings({ board, music, state, onMuteChanged });
+    showSettings({ board, music, fireAmbience, state, onMuteChanged });
   });
 
   modal.querySelector('.saves-open')?.addEventListener('click', () => {

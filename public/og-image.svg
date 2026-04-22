@@ -1,88 +1,61 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" shape-rendering="crispEdges">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     viewBox="0 0 1200 630" width="1200" height="630"
+     shape-rendering="crispEdges">
   <title>Tipping Point — A climate strategy game</title>
+  <desc>Pixel-art split landscape: a scenic green world on the left, a burning
+  wasteland on the right. The TIPPING POINT wordmark sits across the divide, and
+  a tagline card reads "Decarbonize the planet before +4°C. Research, deploy,
+  reverse the curve."</desc>
+
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#7cc9e8"/>
-      <stop offset="1" stop-color="#5cb3d6"/>
+    <!-- Soft bottom vignette so the tagline card reads against the landscape -->
+    <linearGradient id="vignette" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.54" stop-color="#0a0814" stop-opacity="0"/>
+      <stop offset="1"    stop-color="#0a0814" stop-opacity="0.43"/>
     </linearGradient>
-    <!-- Pixelated cloud tile reused across the sky -->
-    <symbol id="cloud" viewBox="0 0 40 16" overflow="visible">
-      <rect x="6"  y="4"  width="28" height="8" fill="#ffffff"/>
-      <rect x="10" y="2"  width="20" height="2" fill="#ffffff"/>
-      <rect x="4"  y="6"  width="2"  height="4" fill="#ffffff"/>
-      <rect x="34" y="6"  width="2"  height="4" fill="#ffffff"/>
-      <rect x="8"  y="12" width="24" height="2" fill="#e8f3fa"/>
-    </symbol>
   </defs>
 
-  <!-- Sky -->
-  <rect width="1200" height="630" fill="url(#sky)"/>
+  <!-- Solid fallback in case the wallpaper fails to render -->
+  <rect width="1200" height="630" fill="#1a1328"/>
 
-  <!-- Clouds -->
-  <use href="#cloud" x="80"   y="70"  width="160" height="64" opacity="0.9"/>
-  <use href="#cloud" x="900"  y="60"  width="200" height="80" opacity="0.95"/>
-  <use href="#cloud" x="520"  y="110" width="120" height="48" opacity="0.85"/>
-  <use href="#cloud" x="1020" y="200" width="120" height="48" opacity="0.85"/>
+  <!-- Painted wallpaper, scaled to h=630 and centered (native ratio 1819.5:780) -->
+  <image href="title-wallpaper.svg" xlink:href="title-wallpaper.svg"
+         x="-135" y="0" width="1470" height="630"
+         preserveAspectRatio="xMidYMid slice"/>
 
-  <!-- Ground band -->
-  <rect x="0" y="540" width="1200" height="90" fill="#6cc04a"/>
-  <rect x="0" y="540" width="1200" height="6"  fill="#1a1328"/>
-  <rect x="0" y="556" width="1200" height="2"  fill="#a8e26b"/>
+  <!-- Bottom vignette -->
+  <rect width="1200" height="630" fill="url(#vignette)"/>
 
-  <!-- Globe (Earth) on the left -->
-  <g transform="translate(120, 210)">
-    <!-- Dark outline ring -->
-    <circle cx="150" cy="150" r="150" fill="#1a1328"/>
-    <!-- Ocean -->
-    <circle cx="150" cy="150" r="142" fill="#3aa0d4"/>
-    <!-- Ocean highlight -->
-    <path d="M 40 110 a 140 140 0 0 1 100 -80 q -40 20 -60 60 q -20 30 -40 20 z" fill="#7cc9e8" opacity="0.8"/>
-    <!-- Continents (abstract pixel-ish blobs) -->
-    <g fill="#6cc04a" stroke="#3f8a2d" stroke-width="3">
-      <path d="M 70 120 q 40 -30 90 -10 q 30 20 10 50 q -20 30 -60 20 q -50 -10 -40 -60 z"/>
-      <path d="M 180 100 q 30 -10 60 10 q 20 20 0 40 q -30 20 -50 0 q -20 -20 -10 -50 z"/>
-      <path d="M 150 200 q 50 0 80 30 q 10 30 -30 50 q -50 10 -70 -20 q -20 -40 20 -60 z"/>
-      <path d="M 70 220 q 20 -10 40 10 q 10 20 -10 30 q -20 10 -30 -10 q -10 -20 0 -30 z"/>
-    </g>
-  </g>
-
-  <!-- Leaf sprouting from the top of the globe -->
-  <g transform="translate(230, 40)">
-    <!-- Stem -->
-    <rect x="38" y="150" width="8" height="50" fill="#1a1328"/>
-    <rect x="40" y="150" width="4" height="50" fill="#4a7a2a"/>
-    <!-- Leaf outline -->
-    <path d="M 0 120 C 10 40, 80 10, 140 20 C 110 80, 80 140, 20 160 C 10 150, 0 135, 0 120 Z"
-          fill="#1a1328"/>
-    <!-- Leaf body -->
-    <path d="M 8 120 C 18 48, 80 22, 132 30 C 106 82, 78 134, 24 150 C 14 145, 8 132, 8 120 Z"
-          fill="#6cc04a"/>
-    <!-- Leaf highlight -->
-    <path d="M 22 110 C 32 60, 68 38, 100 38 C 78 64, 52 98, 30 124 C 22 122, 20 118, 22 110 Z"
-          fill="#a8e26b"/>
-    <!-- Midrib -->
-    <path d="M 132 30 C 98 72, 60 118, 28 150" fill="none" stroke="#3f8a2d" stroke-width="5" stroke-linecap="round"/>
-  </g>
-
-  <!-- Title -->
-  <g font-family="'Press Start 2P', monospace" fill="#1a1328">
-    <!-- Drop shadow (pixel offset) -->
-    <text x="560" y="238" font-size="86" fill="#ffffff" opacity="0.6">TIPPING</text>
-    <text x="556" y="234" font-size="86">TIPPING</text>
-
-    <text x="560" y="338" font-size="86" fill="#ffffff" opacity="0.6">POINT</text>
-    <text x="556" y="334" font-size="86">POINT</text>
+  <!-- Wordmark logo, sized to 600×327 and centered horizontally -->
+  <g>
+    <!-- Soft drop shadow approximated with a slightly offset, blurred copy -->
+    <image href="tipping-point-logo.svg" xlink:href="tipping-point-logo.svg"
+           x="300" y="56" width="600" height="327"
+           opacity="0.35" filter="blur(10px)"/>
+    <image href="tipping-point-logo.svg" xlink:href="tipping-point-logo.svg"
+           x="300" y="52" width="600" height="327"/>
   </g>
 
   <!-- Tagline card -->
-  <g transform="translate(556, 380)">
-    <rect x="0" y="0" width="560" height="120" fill="#f4efdf" stroke="#1a1328" stroke-width="5"/>
-    <rect x="6" y="6" width="548" height="12" fill="#e8dfc4"/>
-    <text x="24" y="52" font-family="'Baloo 2', 'Press Start 2P', system-ui, sans-serif" font-size="30" font-weight="800" fill="#1a1328">
-      Decarbonize the planet.
+  <g>
+    <rect x="170" y="432" width="860" height="132" fill="#1a1328"/>
+    <rect x="175" y="437" width="850" height="122" fill="#f4efdf"/>
+    <rect x="187" y="449" width="826" height="12"  fill="#e8dfc4"/>
+    <!-- Pixel-art corner accents -->
+    <rect x="170" y="432" width="5" height="5" fill="#1a1328"/>
+    <rect x="1025" y="432" width="5" height="5" fill="#1a1328"/>
+    <rect x="170" y="559" width="5" height="5" fill="#1a1328"/>
+    <rect x="1025" y="559" width="5" height="5" fill="#1a1328"/>
+
+    <text x="600" y="502"
+          font-family="'Arial Black', 'Helvetica Neue', system-ui, sans-serif"
+          font-size="36" font-weight="900" text-anchor="middle" fill="#1a1328">
+      Decarbonize the planet before +4°C.
     </text>
-    <text x="24" y="92" font-family="'Baloo 2', system-ui, sans-serif" font-size="24" fill="#1a1328">
-      Plague Inc., inverted — spread solutions, not contagion.
+    <text x="600" y="540"
+          font-family="'Arial', 'Helvetica Neue', system-ui, sans-serif"
+          font-size="24" text-anchor="middle" fill="#1a1328">
+      Research, deploy, reverse the curve.
     </text>
   </g>
 </svg>

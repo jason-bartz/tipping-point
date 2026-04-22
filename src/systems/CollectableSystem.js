@@ -1,5 +1,5 @@
-// Plague-Inc style bubbles that pop on the map. Encourage active play: each
-// type has a strategic effect beyond its Credit payout. Spawn weight favors
+// Opportunity bubbles that pop on the map. Encourage active play: each type
+// has a strategic effect beyond its Credit payout. Spawn weight favors
 // high-emission countries — that's where the fight matters.
 
 import { BALANCE } from '../config/balance.js';
@@ -7,6 +7,9 @@ import { EVT } from '../core/EventBus.js';
 import { COLLECTABLE_TYPES, COLLECTABLE_ROLL_TABLE } from '../data/collectables.js';
 import { BRANCHES } from '../data/activities.js';
 import { advisorConsumePendingSpawns } from './AdvisorSystem.js';
+import { readAutoCollect } from '../ui/SettingsModal.js';
+
+const AUTO_COLLECT_DELAY_MS = 500;
 
 export class CollectableSystem {
   constructor(state, bus, worldMap, mapContainer) {
@@ -18,10 +21,13 @@ export class CollectableSystem {
     this.layer.className = 'collectable-layer';
     this.container.appendChild(this.layer);
     this.elById = new Map();
+    this.autoTimers = new Map();
     bus.on(EVT.TICK, () => this._step());
   }
 
   destroy() {
+    for (const t of this.autoTimers.values()) clearTimeout(t);
+    this.autoTimers.clear();
     this.layer?.remove();
     this.elById.clear();
   }
@@ -72,6 +78,20 @@ export class CollectableSystem {
     };
     this.s.collectables.push(spawn);
     this._renderOne(spawn, country);
+    this._scheduleAutoClaim(spawn.id);
+  }
+
+  // Quality-of-life: if Auto-collect is enabled in settings, grab the item
+  // after a short delay. Re-check the flag when the timer fires so toggling
+  // mid-game applies to pending pickups.
+  _scheduleAutoClaim(id) {
+    const t = setTimeout(() => {
+      this.autoTimers.delete(id);
+      if (!readAutoCollect()) return;
+      if (!this.elById.has(id)) return;
+      this._claim(id);
+    }, AUTO_COLLECT_DELAY_MS);
+    this.autoTimers.set(id, t);
   }
 
   _rollType(rng) {
@@ -112,12 +132,16 @@ export class CollectableSystem {
     const el = this.elById.get(id);
     if (el) el.remove();
     this.elById.delete(id);
+    const t = this.autoTimers.get(id);
+    if (t) { clearTimeout(t); this.autoTimers.delete(id); }
   }
 
   _claim(id, originCoords) {
     const idx = this.s.collectables.findIndex(c => c.id === id);
     if (idx === -1) return;
     const [c] = this.s.collectables.splice(idx, 1);
+    const pending = this.autoTimers.get(id);
+    if (pending) { clearTimeout(pending); this.autoTimers.delete(id); }
 
     this.s.world.climatePoints += c.value;
     const country = this.s.countries[c.countryId];

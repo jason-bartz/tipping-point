@@ -12,3 +12,7 @@ coverage
 .env.local
 .env.*.local
 .vercel
+
+# Raw art source packs. Processed/shipping assets go under public/ or src/;
+# keep multi-MB aseprite/PNG source trees out of git history.
+gameworld assets/

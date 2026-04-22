@@ -75,7 +75,14 @@ export const BALANCE = {
   // Decision timeout. An interactive event that's been pending this many
   // ticks auto-expires — inaction is a choice and it costs you. Individual
   // events can override with `timeoutTicks` on their def.
-  decisionTimeoutTicks: 12,           // ~3 in-game years at 4 ticks/year
+  decisionTimeoutTicks: 18,           // ~4.5 in-game years at 4 ticks/year
+
+  // Recency window for interactive picks. The director excludes any event
+  // whose id is in the last N fired from the eligible pool, so the same
+  // decision doesn't resurface back-to-back. Sized to roughly half the
+  // interactive pool — enough distance between repeats to feel varied, not
+  // so strict that guards can starve the pool.
+  interactiveRecencyWindow: 8,
 
   // Default penalty when a decision expires without a choice. Stackable —
   // author events can add `onExpire` effects that run *instead of* these.
@@ -93,15 +100,29 @@ export const BALANCE = {
   // ticks with a pending interactive event.
   ipccCadenceTicks: 16,
 
-  // Business-as-usual emission growth: economies expand ~0.8%/yr without
-  // intervention. Dampened per-country by adoption level.
-  bauEmissionGrowthPerYear: 0.008,
+  // Business-as-usual emission growth: economies expand without intervention,
+  // dampened per-country by adoption level. Dropped from the real-world ~0.8%/yr
+  // to 0.5%/yr because the original rate outpaced tier-1 interventions — a
+  // full tier-1 roll-out across every country would dip emissions briefly,
+  // then BAU regrowth erased the gain in ~3 years. 0.5% gives early, modest
+  // play room to bend the curve before tier-2/3 come online.
+  bauEmissionGrowthPerYear: 0.005,
 
   // ─── Collectables — ~1 per 35s, max 2 on screen, 3-tick startup grace.
   collectableFireChancePerTick: 0.075,
   collectableTTLTicks: 5,
   collectableMaxConcurrent: 2,
   collectableStartupGraceTicks: 3,
+
+  // ─── Citizen chatter — speech-bubble Easter eggs on the map. One at a
+  // time, sporadic. With 4.5s/tick, 0.045 fire chance + a 6-tick min gap
+  // works out to roughly one bubble every ~2 minutes at 1× speed. Dwell of
+  // 5 ticks reads as ~22s at 1× / ~11s at 2× / ~5.5s at 4× — long enough
+  // to read comfortably at fast-forward without lingering at real-time.
+  chatterFireChancePerTick: 0.045,
+  chatterDwellTicks: 5,
+  chatterMinGapTicks: 6,
+  chatterStartupGraceTicks: 4,
 
   // Diamond-collectable research discount.
   researchDiscountTicks: 4,
@@ -173,6 +194,22 @@ export const BALANCE = {
   // Set near the starting global baseline — retune alongside any country
   // roster or baseEmissions overhaul.
   globalBaselineEmissionsGt: 40,
+
+  // ─── Sporadic wildfires — occasional RNG fires that appear outside of the
+  //     Megafire Season / Wildfires Rage event beats. Light touch by design:
+  //     a small, unavoidable credit drain (emergency response comes out of
+  //     the climate fund) plus map FX so the player sees where it hit.
+  //     Paced with a startup grace, a min-gap between sporadic fires, and a
+  //     cooldown after any wildfire-season event so we never stack on top of
+  //     one that's already painting the screen.
+  sporadicWildfire: {
+    enabled: true,
+    startupGraceTicks: 12,      // ~3 years of quiet before the first one
+    minGapTicks: 8,             // ~2 years between sporadic fires
+    seasonCooldownTicks: 10,    // hold off after a wildfire-season event
+    chancePerTick: 0.04,        // ≈ 1 roll in 25 ticks, gated by the gaps above
+    creditDrain: 1,             // climate credits spent on emergency response
+  },
 
   // ─── Forestry — forest health per country + accrued carbon liability on
   //     the sitting government. Forest health regenerates from deployed land

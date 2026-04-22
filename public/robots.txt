@@ -3,4 +3,4 @@ Allow: /
 Disallow: /Music/
 Disallow: /tilesets/
 
-Sitemap: https://tippingpoint.game/sitemap.xml
+Sitemap: https://playtippingpoint.com/sitemap.xml

@@ -565,6 +565,19 @@
   }
   .dispatch-category.unintended { background: #f5d0fe; color: #6b21a8; }
 
+  /* Hard call chip on the event modal — shown next to the title for events
+     tagged category: 'unintended' in data/events.js. Signals "no clean
+     answer" at decision time, before the player picks. */
+  .modal-hard-call {
+    display: inline-block; vertical-align: middle;
+    margin-left: 10px;
+    font-family: var(--font-display), 'Baloo 2', system-ui, sans-serif;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+    padding: 3px 7px; border: 1.5px solid var(--line);
+    background: #f5d0fe; color: #6b21a8;
+    line-height: 1; white-space: nowrap; text-transform: uppercase;
+  }
+
   .dispatch-card-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .dispatch-when { margin-left: 0; font-family: var(--font-display); font-size: var(--disp-chip-font); font-weight: 700; color: var(--text-dim); letter-spacing: 0.5px; font-variant-numeric: tabular-nums; line-height: 1; }
   .dispatch-pending-dot {
@@ -580,8 +593,11 @@
   }
 
   .dispatch-title { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.25; }
-  .dispatch-body { font-size: 13px; color: var(--text); line-height: 1.4; font-weight: 500; padding-top: 2px; }
-  .dispatch-detail { font-size: 11px; color: var(--text-dim); line-height: 1.4; font-weight: 600; padding: 6px 8px; background: var(--bg-3); border: 1.5px dashed var(--line); }
+  .dispatch-body { font-size: 14px; color: var(--text); line-height: 1.45; font-weight: 500; padding-top: 2px; }
+  /* Flat — no inner box. The dashed top border signals "outcome echo" below
+     the body without nesting another padded/backgrounded container inside the
+     already-framed card, which was shrinking the effective text column. */
+  .dispatch-detail { font-size: 13px; color: var(--text); line-height: 1.5; font-weight: 500; padding: 8px 0 2px; margin-top: 2px; border-top: 1.5px dashed var(--line); }
   .dispatch-action { align-self: flex-start; color: var(--line); background: var(--surface-2); cursor: pointer; transition: background 0.1s; }
   .dispatch-action:hover { background: var(--bg-3); }
   .dispatch-action.action-decide { background: var(--accent); color: var(--line); }
@@ -926,26 +942,29 @@
   .council-mood-dot.mood-worried   { background: var(--mood-worried); }
   .council-mood-dot.mood-alarmed   { background: var(--mood-alarmed); }
 
-  .council-detail { background: #fff; border: 2.5px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .council-detail { background: #fff; border: 2.5px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
   .council-detail-head { display: flex; flex-direction: column; gap: 3px; }
-  .council-detail-title { font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.3px; text-transform: uppercase; }
-  .council-detail-line { font-size: 12px; color: var(--text); font-style: italic; font-weight: 500; margin-top: 3px; }
-  .council-detail-stats { display: flex; justify-content: space-between; font-size: 12px; color: var(--text); font-weight: 600; }
-  .council-detail-comments { background: #fff; border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
-  .council-detail-comments-head { font-family: var(--font-display), 'Baloo 2', system-ui, sans-serif; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); }
-  .council-comment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; max-height: 180px; overflow-y: auto; }
-  .council-comment { display: grid; grid-template-columns: 60px 1fr; gap: 8px; align-items: baseline; padding: 4px 6px; background: var(--surface-2); border-left: 3px solid var(--text-dim); border-radius: 0; }
+  .council-detail-title { font-size: 12px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.3px; text-transform: uppercase; }
+  .council-detail-line { font-size: 13px; color: var(--text); font-style: italic; font-weight: 500; margin-top: 3px; line-height: 1.4; }
+  .council-detail-stats { display: flex; justify-content: space-between; font-size: 13px; color: var(--text); font-weight: 600; }
+  /* Flat — no inner box. The parent .council-detail already frames this; a
+     dashed top separator marks the section without adding another nested
+     border/background that would squeeze the text. */
+  .council-detail-comments { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1.5px dashed var(--line); }
+  .council-detail-comments-head { font-family: var(--font-display), 'Baloo 2', system-ui, sans-serif; font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); }
+  .council-comment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; }
+  .council-comment { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: baseline; padding: 2px 0 2px 10px; border-left: 3px solid var(--text-dim); }
   .council-comment.tone-good { border-left-color: var(--good); }
   .council-comment.tone-bad  { border-left-color: var(--bad); }
   .council-comment.tone-info { border-left-color: var(--accent-2); }
-  .council-comment-when { font-family: var(--font-display), 'Baloo 2', system-ui, sans-serif; font-size: 9px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.4px; font-variant-numeric: tabular-nums; }
-  .council-comment-body { font-size: 12px; color: var(--text); font-weight: 500; line-height: 1.35; }
+  .council-comment-when { font-family: var(--font-display), 'Baloo 2', system-ui, sans-serif; font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.4px; font-variant-numeric: tabular-nums; }
+  .council-comment-body { font-size: 13px; color: var(--text); font-weight: 500; line-height: 1.45; }
 
-  .council-detail-ability { background: var(--bg-3); border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
-  .council-ability-head { font-size: 12px; color: var(--text); font-weight: 500; }
+  .council-detail-ability { background: var(--bg-3); border: 2px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .council-ability-head { font-size: 13px; color: var(--text); font-weight: 500; line-height: 1.4; }
   .council-ability-head b { font-weight: 800; }
-  .council-ability-status { font-size: 11px; color: var(--text-dim); font-weight: 600; }
-  .council-ability-btn { background: var(--accent); color: var(--line); border: 2.5px solid var(--line); border-radius: 0; padding: 6px 14px; font-weight: 800; font-size: 12px; box-shadow: var(--shadow-sm); cursor: pointer; transition: transform 0.08s, box-shadow 0.08s; }
+  .council-ability-status { font-size: 12px; color: var(--text-dim); font-weight: 600; }
+  .council-ability-btn { background: var(--accent); color: var(--line); border: 2.5px solid var(--line); border-radius: 0; padding: 6px 14px; font-weight: 800; font-size: 13px; box-shadow: var(--shadow-sm); cursor: pointer; transition: transform 0.08s, box-shadow 0.08s; }
   .council-ability-btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--line); }
   .council-ability-btn:disabled { background: #e5e7eb; color: var(--text-dim); cursor: not-allowed; box-shadow: none; }
 
@@ -956,7 +975,7 @@
     .council-seat-line { font-size: 10px; }
   }
 
-  /* Collectable bubbles (Plague-Inc style) */
+  /* Collectable bubbles */
   .collectable-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
   .collectable { position: absolute; pointer-events: auto; background: #fff; border: 2.5px solid var(--line); border-radius: 0; padding: 3px 10px 3px 6px; font-weight: 800; color: var(--line); box-shadow: var(--shadow-sm); display: inline-flex; align-items: center; gap: 5px; cursor: pointer; transform-origin: center; animation: collectableIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), collectableBob 2.2s ease-in-out 0.4s infinite alternate; transition: transform 0.12s; white-space: nowrap; font-size: 13px; }
   .collectable:hover { transform: scale(1.12) translateY(-2px); box-shadow: 3px 3px 0 var(--line); z-index: 6; }
@@ -975,6 +994,56 @@
   @keyframes collectableIn { 0% { transform: scale(0) rotate(-25deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
   @keyframes collectableBob { 0% { transform: translateY(0); } 100% { transform: translateY(-5px); } }
   @keyframes collectableOut { 0% { transform: scale(1) translateY(0); opacity: 1; } 100% { transform: scale(1.35) translateY(-42px); opacity: 0; } }
+
+  /* Citizen chatter — speech bubbles over the map. One at a time, a few
+     seconds of dwell, then fade. Anchor point is at the center-bottom of
+     the bubble (the tail pins to the country marker). */
+  .chatter-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+  .chatter-bubble {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    max-width: 260px; min-width: 70px;
+    background: #fff; color: var(--line);
+    border: 2.5px solid var(--line); border-radius: 10px;
+    padding: 8px 12px;
+    box-shadow: var(--shadow-sm);
+    pointer-events: none;
+    animation: chatterIn 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+    will-change: transform, opacity;
+  }
+  .chatter-bubble-text {
+    font-size: 15px; line-height: 1.4; font-weight: 600;
+    letter-spacing: 0; word-break: break-word;
+  }
+  /* Stacked-triangle tail: outer dark continues the bubble's border color,
+     inner white extends 1px up into the bubble to cover the seam where the
+     tail attaches. No drop-shadow — the outer triangle is the outline. */
+  .chatter-bubble-tail {
+    position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid var(--line);
+  }
+  .chatter-bubble-tail::after {
+    content: '';
+    position: absolute;
+    left: 50%; bottom: 3px;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid #fff;
+  }
+  .chatter-bubble-out { animation: chatterOut 0.42s ease forwards; }
+  @keyframes chatterIn {
+    0%   { opacity: 0; transform: translate(-50%, -100%) scale(0.6) translateY(6px); }
+    100% { opacity: 1; transform: translate(-50%, -100%) scale(1) translateY(0); }
+  }
+  @keyframes chatterOut {
+    0%   { opacity: 1; transform: translate(-50%, -100%) translateY(0); }
+    100% { opacity: 0; transform: translate(-50%, -100%) translateY(-10px); }
+  }
   #map-container::before { content: ''; position: absolute; inset: 0; pointer-events: none;
     background:
       radial-gradient(ellipse 90px 28px at 12% 15%, #fff 0%, #fff 50%, transparent 52%),
@@ -1291,7 +1360,7 @@
     .starter-columns { grid-template-columns: 1fr; }
   }
 
-  /* Stats modal — Plague Inc-style dashboard */
+  /* Stats modal */
   .stats-modal { padding: 20px; }
   .stats-card { background: var(--bg-2); border: 3.5px solid var(--line); border-radius: var(--radius); padding: var(--modal-padding); width: calc(100% - 40px); max-width: 960px; max-height: 88vh; box-shadow: var(--shadow-lg); overflow-y: auto; transform: none; }
   .stats-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 3px dashed var(--line); padding-bottom: 12px; margin-bottom: 16px; }
@@ -1815,6 +1884,7 @@
   html.gp-reduce-motion .news-scroll,
   html.gp-reduce-motion .pulse,
   html.gp-reduce-motion .collectable,
+  html.gp-reduce-motion .chatter-bubble,
   html.gp-reduce-motion .panel-badge,
   html.gp-reduce-motion .rp-fill,
   html.gp-reduce-motion .gp-shake-soft,
@@ -2028,7 +2098,7 @@
       scroll-behavior: auto !important;
     }
     .news-scroll { animation: none !important; }
-    .pulse, .collectable, .panel-badge, .rp-fill { animation: none !important; }
+    .pulse, .collectable, .chatter-bubble, .panel-badge, .rp-fill { animation: none !important; }
     .rt-tab.rt-tab-urgent { animation: none !important; box-shadow: inset 0 0 0 3px var(--bad) !important; }
     .gp-shake-soft, .gp-shake-thump, .gp-shake-quake,
     .gp-fill-pulse, .gp-float, .gp-research-burst,
@@ -2335,6 +2405,12 @@
   /* Collectable bubbles — keep them festive but square. */
   .collectable { border-width: 3px; font-family: var(--font-display); font-size: 10px; letter-spacing: 0.5px; box-shadow: var(--shadow-sm); }
   .collectable-value { font-size: 9px; }
+
+  /* Citizen chatter — keep rounded corners (reads as a speech bubble,
+     distinct from the square collectable chips) but thicken the border
+     to match the pixel chrome elsewhere. */
+  .chatter-bubble { border-width: 3px; box-shadow: var(--shadow-sm); }
+  .chatter-bubble-text { font-size: 14px; line-height: 1.45; }
 
   /* Toast — symmetric pixel frame. All four sides the same weight so the
      box doesn't read as crooked; the tone color lives in the left accent

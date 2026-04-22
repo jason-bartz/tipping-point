@@ -24,9 +24,11 @@ import { EventSystem } from './systems/EventSystem.js';
 import { NewsSystem } from './systems/NewsSystem.js';
 import { ScoringSystem } from './systems/ScoringSystem.js';
 import { CollectableSystem } from './systems/CollectableSystem.js';
+import { CitizenChatterSystem } from './systems/CitizenChatterSystem.js';
 import { PopulationSystem } from './systems/PopulationSystem.js';
 import { AdvisorSystem } from './systems/AdvisorSystem.js';
 import { ForestrySystem } from './systems/ForestrySystem.js';
+import { SporadicWildfireSystem } from './systems/SporadicWildfireSystem.js';
 import { MarineLifeSystem } from './systems/MarineLifeSystem.js';
 import { SpeciesSystem } from './systems/SpeciesSystem.js';
 import { WildfireFx } from './ui/WildfireFx.js';
@@ -60,6 +62,7 @@ import { installKeyboard } from './ui/Keyboard.js';
 import { COUNTRY_PROFILES } from './data/profiles.js';
 import { SoundBoard, bindSounds } from './audio/SoundBoard.js';
 import { MusicPlayer } from './audio/MusicPlayer.js';
+import { FireAmbience } from './audio/FireAmbience.js';
 import { save, load, clearSave, installAutoSave, loadFromSlot } from './save/saveLoad.js';
 import { BALANCE } from './config/balance.js';
 import { logDispatch, resolveDecisionDispatch, expireDecisionDispatch } from './model/Dispatches.js';
@@ -70,6 +73,7 @@ import { logDispatch, resolveDecisionDispatch, expireDecisionDispatch } from './
 let teardown = null;
 let soundBoard = null;
 let musicPlayer = null;
+let fireAmbience = null;
 
 function ensureSoundBoard() {
   if (!soundBoard) soundBoard = new SoundBoard();
@@ -79,6 +83,11 @@ function ensureSoundBoard() {
 function ensureMusicPlayer() {
   if (!musicPlayer) musicPlayer = new MusicPlayer();
   return musicPlayer;
+}
+
+function ensureFireAmbience() {
+  if (!fireAmbience) fireAmbience = new FireAmbience();
+  return fireAmbience;
 }
 
 // Show an error banner in the map container. Used when map data somehow
@@ -130,6 +139,10 @@ function startGame(state) {
   // Forestry + government. Ticks forest health + liability; hooks into
   // EVENT_FIRED so wildfire-class events charge the sitting incumbent.
   const forestry   = new ForestrySystem(state, bus);
+  // Sporadic wildfires — RNG-driven out-of-season fires that paint a country
+  // with a small drain on climate credits. Constructed after ForestrySystem
+  // so a season-event tick fires liability first, sporadic FX after.
+  const sporadicFires = new SporadicWildfireSystem(state, bus);
   // Biodiversity — reads tempAnomalyC, mutates species statuses, emits
   // SPECIES_* events that NewsSystem (already constructed above) picks up
   // for the ticker and dispatches log.
@@ -148,8 +161,10 @@ function startGame(state) {
   const ambience = new MapAmbience(mapContainer, state, bus);
   const recovery = new RecoveryBar(mapContainer, state, bus);
   const collectables = new CollectableSystem(state, bus, worldMap, mapContainer);
+  const chatter = new CitizenChatterSystem(state, bus, worldMap, mapContainer);
   const marineLife = new MarineLifeSystem(state, bus, worldMap);
-  const wildfireFx = new WildfireFx(state, bus, worldMap);
+  const fireAmb = ensureFireAmbience();
+  const wildfireFx = new WildfireFx(state, bus, worldMap, { fireAmbience: fireAmb });
   const clouds = new CloudLayer(worldMap);
   const smogPlumes = new SmogPlumes(state, bus, worldMap);
   installFloatingText();
@@ -187,10 +202,10 @@ function startGame(state) {
     onHelp:  () => showTutorial({ state, pauseWhileOpen: true }),
     onStats: () => showStatsModal(state),
     onAchievements: () => showAchievements({ state }),
-    onMute:  () => { const m = board.toggleMute(); music.setMuted(m); return m; },
+    onMute:  () => { const m = board.toggleMute(); music.setMuted(m); fireAmb.setMuted(m); return m; },
     onSave:  () => { save(state); showToast('Saved', 'Progress written to this browser.', 'good'); },
     onSettings: () => showSettings({
-      board, music, state,
+      board, music, fireAmbience: fireAmb, state,
       onMuteChanged: (m) => {
         const btn = document.querySelector('.mute-btn');
         if (!btn) return;
@@ -324,6 +339,26 @@ function startGame(state) {
       setTimeout(() => particle.remove(), 900);
     }
   });
+  // Auto first-deploy at home on research complete. Home is always the
+  // cheapest first deploy (25% discount, +15 PW floor) and the 1st deploy
+  // is the highest-yield of the three allowed per pair. Automating it
+  // removes a rote click without flattening the 2nd/3rd-deploy decisions,
+  // which are where real judgment lives. Failures toast, but don't queue —
+  // if you can't afford it, that's information, not a deferred transaction.
+  bus.on(EVT.RESEARCH_DONE, (p) => {
+    const homeId = state.meta?.homeCountryId;
+    if (!homeId || !p?.activity) return;
+    const result = adoption.deploy(homeId, p.activity);
+    if (result.ok) {
+      showToast('Auto-deployed at home', p.activity.name, 'good');
+    } else if (result.reason === 'insufficient_cp') {
+      showToast("Can't auto-deploy", `${p.activity.name} — need ${result.cost} Credits. Deploy manually when ready.`, 'warn');
+    } else if (result.reason === 'will_gate') {
+      showToast("Can't auto-deploy", `${p.activity.name} — home political will below threshold (${result.have}/${result.threshold}).`, 'warn');
+    }
+    // Other reasons (pair_cap, not_researched) can't occur for a freshly-
+    // completed research in the home country, so silent is correct.
+  });
   bus.on(EVT.COLLECTABLE_CLAIMED, (p) => {
     showToast(p.title, p.body, p.tone);
     // If the collectable carries screen coords, float the value there.
@@ -331,10 +366,10 @@ function startGame(state) {
       const label = p.floatLabel || (typeof p.value === 'number' ? `+${p.value} ●` : p.title);
       floatAt({ x: p.clientX, y: p.clientY }, label, p.tone || 'good');
     }
-    // Pickup has weight now — soft shake for regular drops, thump for the
-    // rare Policy Breakthrough (tone 'good' + value ≥ 12 covers that case).
+    // Keep pickups quiet — only rare high-value drops get a soft shake so the
+    // screen doesn't jitter on every collectable grab.
     const big = typeof p?.value === 'number' && p.value >= 12;
-    shakeScreen(big ? 'thump' : 'soft');
+    if (big) shakeScreen('soft');
   });
   // Deploy — float "+X% Branch" from the deploy button; spend cost floats as
   // a red "-Y ●" chip. Emits right after the model mutates, so the button's
@@ -472,7 +507,7 @@ function startGame(state) {
     onSpeedChanged: () => hud.syncSpeedUI?.(),
     onAchievements: () => showAchievements({ state }),
     onSettings: () => showSettings({
-      board, music, state,
+      board, music, fireAmbience: fireAmb, state,
       onMuteChanged: (m) => {
         const btn = document.querySelector('.mute-btn');
         if (!btn) return;
@@ -485,6 +520,7 @@ function startGame(state) {
     onMute:  () => {
       const muted = board.toggleMute();
       music.setMuted(muted);
+      fireAmb.setMuted(muted);
       const btn = document.querySelector('.mute-btn');
       if (btn) {
         btn.classList.toggle('muted', muted);
@@ -543,11 +579,14 @@ function startGame(state) {
     ambience.destroy?.();
     recovery.destroy?.();
     collectables.destroy?.();
+    chatter.destroy?.();
     council.destroy?.();
     advisors.destroy?.();
     forestry.destroy?.();
+    sporadicFires.destroy?.();
     marineLife.destroy?.();
     wildfireFx.destroy?.();
+    fireAmb?.setFireCount?.(0);
     clouds.destroy?.();
     smogPlumes.destroy?.();
     teardownFloatingText();

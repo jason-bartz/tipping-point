@@ -21,9 +21,13 @@ const SMOKE_FRAME_W = 64; const SMOKE_FRAME_H = 128; const SMOKE_FRAMES = 8;
 // we spawn and across how many countries. Global events hit multiple
 // countries; targeted ones just the one.
 const FIRE_EVENTS = {
-  wildfire_local: { scope: 'target', firesMin: 4, firesMax: 6 },
-  wildfire:       { scope: 'global', countries: 5, firesMin: 2, firesMax: 3, forestBias: true },
-  wildfire_smog:  { scope: 'global', countries: 3, firesMin: 3, firesMax: 5, smokeHeavy: true, forestBias: true },
+  wildfire_local:    { scope: 'target', firesMin: 4, firesMax: 6 },
+  wildfire:          { scope: 'global', countries: 5, firesMin: 2, firesMax: 3, forestBias: true },
+  wildfire_smog:     { scope: 'global', countries: 3, firesMin: 3, firesMax: 5, smokeHeavy: true, forestBias: true },
+  // Sporadic out-of-season fires fired by SporadicWildfireSystem. One country,
+  // a couple of flames — visibly smaller than a wildfire-season event so the
+  // player reads it as "background hazard" rather than "crisis beat".
+  wildfire_sporadic: { scope: 'target', firesMin: 2, firesMax: 3 },
 };
 
 // Per-fire lifetime (seconds). A short window so the screen never fills with
@@ -42,13 +46,15 @@ const SMOKE_DRAW_W = 56; const SMOKE_DRAW_H = 112;
 const JITTER_PX = 18;
 
 export class WildfireFx {
-  constructor(state, bus, worldMap) {
+  constructor(state, bus, worldMap, { fireAmbience = null } = {}) {
     this.s = state;
     this.b = bus;
     this.worldMap = worldMap;
+    this.fireAmbience = fireAmbience;
 
     this._destroyed = false;
     this._sprites = new Set(); // live DOM nodes for eager teardown
+    this._activeFlames = 0;    // flame-only count driving ambient fire loop
 
     this.reducedMotion =
       typeof window !== 'undefined' &&
@@ -76,6 +82,8 @@ export class WildfireFx {
     this._unsub?.(); this._unsub = null;
     for (const el of this._sprites) el.remove();
     this._sprites.clear();
+    this._activeFlames = 0;
+    this.fireAmbience?.setFireCount?.(0);
     this.layer?.remove();
     this.layer = null;
   }
@@ -156,20 +164,25 @@ export class WildfireFx {
     const life = FIRE_LIFE_MIN + this._rng() * (FIRE_LIFE_MAX - FIRE_LIFE_MIN);
     const sizeJitter = 0.85 + this._rng() * 0.35; // 0.85×–1.20×
 
-    // Flame sprite.
+    // Flame sprite. --sheet-w is the *drawn* sheet width (DRAW_W × FRAMES),
+    // not the source pixel width — CSS uses it as background-size so each
+    // frame scales to fill the container exactly. Using the source width
+    // here was the old bug: a 48px container showing a 32px-per-frame sheet
+    // leaked the next frame into the right edge, and the final animation
+    // step scrolled past the sheet end leaving a flat transparent slice.
     const fire = document.createElement('div');
     fire.className = 'wildfire-sprite wildfire-flame';
     fire.style.cssText =
       `left:${fx.toFixed(1)}px;top:${fy.toFixed(1)}px;` +
       `width:${FIRE_DRAW_W}px;height:${FIRE_DRAW_H}px;` +
       `--frames:${FIRE_FRAMES};--frame-w:${FIRE_FRAME_W}px;--frame-h:${FIRE_FRAME_H}px;` +
-      `--sheet-w:${FIRE_FRAME_W * FIRE_FRAMES}px;` +
+      `--sheet-w:${FIRE_DRAW_W * FIRE_FRAMES}px;` +
       `background-image:url(${FIRE_SRC});` +
       `animation:wildfire-flame 0.55s steps(${FIRE_FRAMES}) infinite,` +
       ` wildfire-fade ${life.toFixed(2)}s linear forwards;` +
       `transform:scale(${sizeJitter.toFixed(2)});transform-origin:50% 100%;`;
     this.layer.appendChild(fire);
-    this._track(fire, life);
+    this._track(fire, life, true);
 
     // Smoke plume — rises a bit and drifts with a slow opacity fade. Heavier
     // smoke for wildfire_smog (two stacked plumes per fire).
@@ -183,13 +196,17 @@ export class WildfireFx {
     const sx = x - sw / 2;
     const sy = anchorY - sh * 0.35; // smoke starts mid-flame, rises from there
 
+    // --sheet-w must be the *drawn* sheet width (sw × FRAMES) so each frame
+    // scales to exactly the sprite container width — see flame block above
+    // for the bug this was hiding (frames leaking into each other on the
+    // right edge, last step revealing a transparent slice).
     const smoke = document.createElement('div');
     smoke.className = 'wildfire-sprite wildfire-smoke';
     smoke.style.cssText =
       `left:${sx.toFixed(1)}px;top:${sy.toFixed(1)}px;` +
       `width:${sw.toFixed(1)}px;height:${sh.toFixed(1)}px;` +
       `--frames:${SMOKE_FRAMES};--frame-w:${SMOKE_FRAME_W}px;--frame-h:${SMOKE_FRAME_H}px;` +
-      `--sheet-w:${SMOKE_FRAME_W * SMOKE_FRAMES}px;` +
+      `--sheet-w:${(sw * SMOKE_FRAMES).toFixed(1)}px;` +
       `background-image:url(${SMOKE_SRC});` +
       `animation:wildfire-smoke 0.8s steps(${SMOKE_FRAMES}) infinite,` +
       ` wildfire-smoke-rise ${life.toFixed(2)}s ease-out forwards;`;
@@ -197,11 +214,19 @@ export class WildfireFx {
     this._track(smoke, life);
   }
 
-  _track(el, lifeSec) {
+  _track(el, lifeSec, isFlame = false) {
     this._sprites.add(el);
+    if (isFlame) {
+      this._activeFlames++;
+      this.fireAmbience?.setFireCount?.(this._activeFlames);
+    }
     setTimeout(() => {
       el.remove();
       this._sprites.delete(el);
+      if (isFlame) {
+        this._activeFlames = Math.max(0, this._activeFlames - 1);
+        this.fireAmbience?.setFireCount?.(this._activeFlames);
+      }
     }, lifeSec * 1000 + 100);
   }
 

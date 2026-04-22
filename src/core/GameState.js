@@ -81,6 +81,12 @@ export function createState(homeCountryId, { seed } = {}) {
       // separate cadence for interactive events (BALANCE.interactive*) so
       // the player sees decisions on a predictable beat.
       lastInteractiveTick: -999,
+      // Ring buffer of the last few interactive event ids fired. Used by the
+      // director to avoid "seeing the same decision twice in a row" — the
+      // weighted picker excludes anything in this list, falling back to the
+      // full pool only if exclusion empties the candidates. Window size lives
+      // on BALANCE.interactiveRecencyWindow.
+      recentInteractiveIds: [],
       // Persistent dispatches log — every event, news beat, research
       // completion, deploy milestone, and advisor whisper lands here so the
       // player can read the full text at their own pace. Capped to keep

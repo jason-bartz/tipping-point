@@ -1,4 +1,4 @@
-// Plague-Inc style opportunity bubbles. Each type has a distinct strategic
+// Opportunity bubbles that pop on the map. Each type has a distinct strategic
 // effect beyond its Credit payout — encourages active, informed play.
 //
 //   🌱 Grassroots         (54%): +2 credits, +4 Political Will in spawn country

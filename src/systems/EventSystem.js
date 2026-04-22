@@ -135,7 +135,15 @@ export class EventSystem {
     });
     if (!eligible.length) return false;
 
-    const chosen = rng.weightedPick(eligible);
+    // Exclude recently-fired interactives so the player doesn't see the same
+    // decision back-to-back. Fall back to the unfiltered list if the window
+    // would starve the pool — variety is preferred, but "no decision at all"
+    // is worse than a repeat.
+    const recent = new Set(s.meta.recentInteractiveIds ?? []);
+    const fresh = eligible.filter(e => !recent.has(e.id));
+    const pool = fresh.length ? fresh : eligible;
+
+    const chosen = rng.weightedPick(pool);
     if (!chosen) return false;
     return this._fire(chosen, true);
   }
@@ -201,7 +209,17 @@ export class EventSystem {
     }
 
     s.meta.lastEventTick = s.meta.tick;
-    if (isInteractiveTrack) s.meta.lastInteractiveTick = s.meta.tick;
+    if (isInteractiveTrack) {
+      s.meta.lastInteractiveTick = s.meta.tick;
+      // Record on the recency ring buffer so the next roll can avoid a
+      // repeat. Trim from the front to keep the window bounded.
+      s.meta.recentInteractiveIds ||= [];
+      s.meta.recentInteractiveIds.push(chosen.id);
+      const windowSize = BALANCE.interactiveRecencyWindow ?? 0;
+      while (s.meta.recentInteractiveIds.length > windowSize) {
+        s.meta.recentInteractiveIds.shift();
+      }
+    }
 
     // Pass expiresAtTick through the bus payload so UI layers (dispatch
     // card, toast) can surface the countdown without peeking at activeEvents.

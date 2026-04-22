@@ -41,9 +41,15 @@ export function showEventModal(state, eventSystem, bus) {
   const modal = document.createElement('div');
   modal.className = 'modal';
   const hasTimer = evt.expiresAtTick != null;
+  // "Hard call" chip for events where every choice carries real backfire
+  // risk. Shown at decision time (actionable) rather than on the resolved
+  // dispatch card (post-hoc, just noise).
+  const hardCallChip = evt.category === 'unintended'
+    ? `<span class="modal-hard-call" title="No clean answer — every path here carries real trade-offs. Read the choices carefully.">Hard call</span>`
+    : '';
   modal.innerHTML = `<div class="modal-card event-modal-card" role="dialog" aria-label="${evt.title}">
     <button type="button" class="modal-close" aria-label="Close">×</button>
-    <h2>${evt.title}</h2>
+    <h2>${evt.title}${hardCallChip}</h2>
     ${hasTimer ? `<div class="modal-timer" aria-live="polite"><span class="modal-timer-label">Decide within</span><span class="modal-timer-val"></span></div>` : ''}
     <p>${evt.headline}</p>
     ${stancesHTML(evt._advisorStances)}

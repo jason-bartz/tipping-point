@@ -1,6 +1,6 @@
 # Tipping Point
 
-A Plague Inc-style strategy game where you fight to decarbonize the planet before runaway climate change locks in. Inspired by Ndemic Creations' *Plague Inc.*, but inverted: instead of spreading a contagion, you spread solutions.
+A strategy game where you fight to decarbonize the planet before runaway climate change locks in. Instead of spreading a contagion, you spread solutions — research clean activities in one country and watch them ripple outward to neighbors.
 
 ## Premise
 
@@ -20,7 +20,7 @@ One tick = one quarter of a year at 1× speed (4.5 real-world seconds). Every ti
 6. Political will drifts toward 50 — **faster when it's hot**. Climate anxiety is a real mechanic.
 7. Random events fire with `BALANCE.eventFireChancePerTick` probability. Some are positive, some negative, some demand a choice.
 8. The news ticker rolls a headline (rate-limited so it isn't spammy).
-9. **Collectable bubbles** spawn on the map (Plague-Inc style): Grassroots, ESG Shift, Climate Rally, Policy Breakthrough. Each grants Credits plus a distinct strategic effect.
+9. **Collectable bubbles** spawn on the map: Grassroots, ESG Shift, Climate Rally, Policy Breakthrough. Each grants Credits plus a distinct strategic effect.
 10. Win/loss check.
 
 Player actions happen in real time. You can pause and tune things. Five shortcuts you'll use constantly: **Space** to pause, **1/2/4** for speed, **M** for mute, **H** for help, **S** for stats.
@@ -76,7 +76,7 @@ Roughly 45 events, divided into four cohorts:
 
 ## Collectables
 
-Plague-Inc style opportunity bubbles pop on the map. Click before they fade.
+Opportunity bubbles pop on the map. Click before they fade.
 
 - 🌱 **Grassroots** (60%): +3 Credits, +4 Will in spawn country
 - 🍃 **ESG Shift** (25%): +5 Credits, +4% adoption in country's leading sector

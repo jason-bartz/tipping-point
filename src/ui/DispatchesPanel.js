@@ -152,18 +152,14 @@ export class DispatchesPanel {
     } else if (d.expired) {
       timerChip = `<span class="dispatch-timer expired" title="This decision ran out of time">Expired</span>`;
     }
-    // Thematic category chip. Today only "unintended" is wired — a tag for
-    // decisions where any choice tends to produce backfire consequences, so
-    // the player can recognize the pattern before reading each echo.
-    const categoryChip = d.category === 'unintended'
-      ? `<span class="dispatch-category unintended" title="Every path here carries backfire risk. Read the echoes.">Unintended</span>`
-      : '';
+    // Thematic "hard call" tag lives on the event modal now (at decision
+    // time, where it's actionable). Post-hoc on a resolved/expired dispatch
+    // it reads as noise, so we intentionally don't surface it here.
     return `<div class="${cls}" data-id="${d.id}" role="listitem" tabindex="0"
                  aria-expanded="${isExpanded ? 'true' : 'false'}">
       <div class="dispatch-card-head">
         <span class="dispatch-when">Q${d.quarter} ${d.year}</span>
         ${timerChip}
-        ${categoryChip}
         ${pendingDot}
       </div>
       <div class="dispatch-title">${d.title || '(untitled)'}</div>
