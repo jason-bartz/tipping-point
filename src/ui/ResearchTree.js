@@ -102,11 +102,13 @@ export class ResearchTree {
       const acts = byTier[tier];
       if (!acts?.length) continue;
       const meta = TIER_META[tier] ?? { label: `Tier ${tier}`, hint: '' };
+      // Tier header is a single compact pill — chapter marker, not a
+      // decorative chip row. Hint text lives in the title attribute so
+      // the panel stays uncluttered.
+      const tierTip = meta.hint ? `${meta.label} · ${meta.hint}` : meta.label;
       out.push(`<div class="tree-tier" data-tier="${tier}">
         <div class="tree-tier-head">
-          <span class="tree-tier-num">T${tier}</span>
-          <span class="tree-tier-label">${meta.label}</span>
-          <span class="tree-tier-hint">${meta.hint}</span>
+          <span class="tree-tier-pill" title="${tierTip}">T${tier} · ${meta.label}</span>
         </div>
         <div class="tree-row">
           ${acts.map(a => this._nodeHTML(a, branch)).join('')}
@@ -151,10 +153,38 @@ export class ResearchTree {
     </button>`;
   }
 
+  /* Walk prereqs recursively from a node. Returns the set of ancestor
+     activity ids (not including the node itself). Cycle-safe via the
+     visited set. */
+  _prereqAncestors(id) {
+    const visited = new Set();
+    const walk = (nodeId) => {
+      const a = this.state.activities[nodeId];
+      if (!a) return;
+      for (const p of a.prereqs) {
+        if (visited.has(p)) continue;
+        visited.add(p);
+        walk(p);
+      }
+    };
+    walk(id);
+    return visited;
+  }
+
   _highlightFocus() {
+    // When the focused node is locked, light up the path: every prereq
+    // ancestor + the focused node itself get the `on-path` class. Lines
+    // pick this up via _drawLines, which reads the same set.
+    const focused = this.focusId ? this.state.activities[this.focusId] : null;
+    const focusedLocked = focused && this._statusOf(focused) === 'locked';
+    this._onPath = focusedLocked ? this._prereqAncestors(this.focusId) : new Set();
+
     for (const [id, el] of this._nodeByActivity) {
       el.classList.toggle('focused', id === this.focusId);
+      el.classList.toggle('on-path', this._onPath.has(id));
     }
+    // Redraw so line classes update too.
+    this._drawLines();
   }
 
   _drawLines() {
@@ -177,6 +207,12 @@ export class ResearchTree {
       });
     }
 
+    // An edge's target being on-path (or the focused node itself) means the
+    // edge is part of the lineage leading to the focused locked node.
+    const onPathTargets = this._onPath
+      ? new Set([...this._onPath, this.focusId])
+      : new Set();
+
     let paths = '';
     for (const a of ACTIVITIES) {
       if (a.branch !== this.active) continue;
@@ -187,11 +223,16 @@ export class ResearchTree {
         if (!from) continue;
         const x1 = from.cx, y1 = from.bottomY;
         const x2 = to.cx,   y2 = to.topY;
-        const midY = (y1 + y2) / 2;
-        // Cubic bezier with gentle vertical approach.
-        const d = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+        // Orthogonal route: down from source, across at midY, down to target.
+        // Right-angle corners keep the SNES/strategy-game tech-tree feel.
+        const midY = Math.round((y1 + y2) / 2);
+        const d = `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`;
         const prereqDone = this.state.world.researched.has(p);
-        paths += `<path d="${d}" class="tree-line ${prereqDone ? 'active' : ''}" />`;
+        const onPath = onPathTargets.has(a.id);
+        const cls = ['tree-line'];
+        if (prereqDone) cls.push('active');
+        if (onPath)     cls.push('on-path');
+        paths += `<path d="${d}" class="${cls.join(' ')}" />`;
       }
     }
     svg.innerHTML = paths;

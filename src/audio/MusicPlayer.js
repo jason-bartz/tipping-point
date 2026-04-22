@@ -9,7 +9,8 @@
 // called from a user-gesture path (the New Game click), so the browser's
 // auto-play policy is satisfied.
 
-const MUTE_KEY = 'greenprint.muted.v1';
+const MUTE_KEY = 'tipping-point.muted.v1';
+const MUSIC_VOL_KEY = 'tipping-point.musicVolume.v1';
 const ASSET_BASE = import.meta.env?.BASE_URL ?? '/';
 
 // URL-encode to survive the space in the filenames.
@@ -26,7 +27,9 @@ const DEFAULT_VOLUME = 0.35; // music sits well under SFX at this level
 export class MusicPlayer {
   constructor({ tracks = DEFAULT_TRACKS, volume = DEFAULT_VOLUME } = {}) {
     this.tracks = tracks;
-    this.baseVolume = volume;
+    // Stored volume (0..1) wins over the constructor default if present —
+    // the settings modal persists through it.
+    this.baseVolume = this._loadVolume(volume);
     this.muted = this._loadMuted();
     this.ctx = null;
     this.master = null;
@@ -42,6 +45,30 @@ export class MusicPlayer {
   _loadMuted() {
     try { return localStorage.getItem(MUTE_KEY) === '1'; }
     catch { return false; }
+  }
+
+  _loadVolume(fallback) {
+    try {
+      const raw = localStorage.getItem(MUSIC_VOL_KEY);
+      if (raw == null) return fallback;
+      const v = Number(raw);
+      if (!Number.isFinite(v)) return fallback;
+      return Math.max(0, Math.min(1, v));
+    } catch {
+      return fallback;
+    }
+  }
+
+  setVolume(v) {
+    const clamped = Math.max(0, Math.min(1, Number(v) || 0));
+    this.baseVolume = clamped;
+    try { localStorage.setItem(MUSIC_VOL_KEY, String(clamped)); } catch { /* ignore */ }
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const target = this.muted ? 0 : this.baseVolume;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(this.master.gain.value, t);
+    this.master.gain.linearRampToValueAtTime(target, t + 0.15);
   }
 
   _ensureContext() {

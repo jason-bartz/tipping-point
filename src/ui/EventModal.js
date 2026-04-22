@@ -5,6 +5,10 @@
 // a separate "The council weighs in" panel between the headline and the
 // choices so the decision text leads and advisor positions are clearly
 // attributed.
+//
+// The modal is dismissable (close button, Escape, backdrop click) — the
+// decision stays pending in the dispatches log and can be reopened from
+// there. Only a choice resolves the event; closing just hides the modal.
 
 import { installModalA11y } from './modal-a11y.js';
 
@@ -34,13 +38,16 @@ export function showEventModal(state, eventSystem) {
 
   const modal = document.createElement('div');
   modal.className = 'modal';
-  modal.innerHTML = `<div class="modal-card" role="dialog" aria-label="${evt.title}">
+  modal.innerHTML = `<div class="modal-card event-modal-card" role="dialog" aria-label="${evt.title}">
+    <button type="button" class="modal-close" aria-label="Close">×</button>
     <h2>${evt.title}</h2>
     <p>${evt.headline}</p>
     ${stancesHTML(evt._advisorStances)}
     <div class="modal-choices">
       ${evt.choices.map((c, i) => `<button class="modal-choice" data-k="${c.key}" data-idx="${i}">${c.label}${c._advisorHint ? `<span class="modal-choice-hint">Backed by ${c._advisorHint}</span>` : ''}</button>`).join('')}
-    </div></div>`;
+    </div>
+    <div class="modal-hint">The decision stays in your Dispatches — close to decide later.</div>
+  </div>`;
   document.body.appendChild(modal);
 
   const choices = [...modal.querySelectorAll('.modal-choice')];
@@ -48,19 +55,25 @@ export function showEventModal(state, eventSystem) {
   const focusIdx = (i) => { idx = (i + choices.length) % choices.length; choices[idx]?.focus(); };
   focusIdx(0);
 
-  // A11y helper — sets aria-modal, restores focus on close. We don't give
-  // it an onClose because this modal intentionally forces a choice (no Esc
-  // dismiss), but it still traps Tab which is safe here.
-  const teardownA11y = installModalA11y(modal.querySelector('.modal-card'), { label: evt.title });
-
   const close = (key) => {
     teardownA11y();
     modal.remove();
     document.removeEventListener('keydown', onKey);
     if (key) eventSystem.resolve(evt.id, key);
   };
+  // Dismissing without a choice — decision remains pending in dispatches.
+  const dismiss = () => close(null);
+
+  const teardownA11y = installModalA11y(modal.querySelector('.modal-card'), {
+    label: evt.title,
+    onClose: dismiss,
+  });
+
   const onKey = (e) => {
-    if (e.key === 'Escape') return; // don't auto-resolve on Esc; force a choice
+    // Escape is wired through installModalA11y → onClose. Arrow keys move
+    // focus between choices; Enter/Space confirms; digit keys jump to a
+    // specific choice.
+    if (e.key === 'Escape') return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { focusIdx(idx + 1); e.preventDefault(); }
     else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { focusIdx(idx - 1); e.preventDefault(); }
     else if (e.key === 'Enter' || e.key === ' ') {
@@ -75,4 +88,8 @@ export function showEventModal(state, eventSystem) {
   document.addEventListener('keydown', onKey);
 
   choices.forEach(btn => btn.addEventListener('click', () => close(btn.dataset.k)));
+  modal.querySelector('.modal-close')?.addEventListener('click', dismiss);
+  // Backdrop click dismisses too — the overlay is the modal itself; clicks
+  // that don't land on the card mean the player tapped outside.
+  modal.addEventListener('click', (e) => { if (e.target === modal) dismiss(); });
 }

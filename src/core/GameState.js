@@ -76,6 +76,15 @@ export function createState(homeCountryId, { seed } = {}) {
       // separate cadence for interactive events (BALANCE.interactive*) so
       // the player sees decisions on a predictable beat.
       lastInteractiveTick: -999,
+      // Persistent dispatches log — every event, news beat, research
+      // completion, deploy milestone, and advisor whisper lands here so the
+      // player can read the full text at their own pace. Capped to keep
+      // saves small; see model/Dispatches.js for shape + helpers.
+      dispatches: [],
+      // Transient flag: set when the director auto-pauses for a pending
+      // interactive decision. Remembers whether the player was already
+      // paused so we don't resume a deliberately-paused game.
+      autoPausedForDecision: false,
     },
     world: {
       co2ppm: BALANCE.startingCO2ppm,
@@ -104,6 +113,12 @@ export function createState(homeCountryId, { seed } = {}) {
       // Population history stored in millions so a sparkline over it reads
       // sensibly. Seed is 0 so first-tick snapshot fills it in.
       populationHistory: [0],
+      // Running total of CO₂ kept out of the atmosphere vs. a no-adoption
+      // baseline (sum of country base emissions). Updated quarterly by
+      // ScoringSystem; exposed in the stats panel as a "what you've prevented"
+      // counter.
+      cumulativeCO2AvoidedGt: 0,
+      co2AvoidedHistory: [0],
     },
     countries: Object.fromEntries(COUNTRIES.map(c => {
       const isHome = c.id === homeCountryId;
@@ -160,6 +175,11 @@ function createAdvisorSlice(homeCountryId) {
     },
     // Last-fired tick for conflicts + whispers. Whispers are keyed by event id.
     lastConflictTick: -999,
+    // Anti-repeat tracking for advisor conflicts. `lastConflictId` excludes
+    // the most-recent conflict from the next pick; `firedConflictIds` biases
+    // toward unseen conflicts until the pool rotates.
+    lastConflictId: null,
+    firedConflictIds: [],
     whisperedEventIds: [],
     // Modifiers driven by rewards (research discount is tracked on world;
     // deploy-cost discount + free-deploy counters live here since they're

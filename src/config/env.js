@@ -3,7 +3,7 @@
 // Three layers, in priority order (last wins):
 //   1. Vite build flags — `import.meta.env.DEV / PROD / MODE`.
 //   2. URL query string — `?debug=1&speed=8&cheats=1`. Handy for bug repros.
-//   3. localStorage — `greenprint.debug.v1` (a JSON string). Persists across
+//   3. localStorage — `tipping-point.debug.v1` (a JSON string). Persists across
 //      reloads for the same browser; set via `setDebugFlag()` below or by
 //      hand in DevTools.
 //
@@ -14,7 +14,7 @@
 // production is unaffected. A missing query-string param falls back to the
 // stored value, then to the default.
 
-const STORAGE_KEY = 'greenprint.debug.v1';
+const STORAGE_KEY = 'tipping-point.debug.v1';
 
 /** @returns {URLSearchParams} */
 function readQuery() {

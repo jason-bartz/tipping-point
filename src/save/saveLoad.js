@@ -10,8 +10,29 @@ import { COUNTRIES } from '../data/countries.js';
 import { ADVISOR_IDS } from '../data/advisors.js';
 import { resolveAdvisor } from '../model/Advisors.js';
 
-const STORAGE_KEY = 'greenprint.save.v1';
+const STORAGE_KEY = 'tipping-point.save.v1';
 const SCHEMA = 1;
+
+// Named slot keys. The `auto` slot reuses the legacy STORAGE_KEY so saves
+// written before slots existed still resolve. Manual slots a/b/c are
+// player-controlled targets — the player pushes the current state into them
+// from the Settings modal and reloads them from the country-select screen.
+export const SLOT_KEYS = {
+  auto: STORAGE_KEY,
+  a: 'tipping-point.save.a.v1',
+  b: 'tipping-point.save.b.v1',
+  c: 'tipping-point.save.c.v1',
+};
+
+export const SLOT_LABELS = {
+  auto: 'Autosave',
+  a: 'Slot A',
+  b: 'Slot B',
+  c: 'Slot C',
+};
+
+export const MANUAL_SLOT_IDS = ['a', 'b', 'c'];
+export const ALL_SLOT_IDS = ['auto', 'a', 'b', 'c'];
 
 // Shallow-serialize Sets and drop transient fields (rng instance, nothing
 // else right now). Everything else round-trips through JSON natively.
@@ -35,6 +56,8 @@ export function deserialize(blob) {
   // old saves readable without bumping SCHEMA.
   s.world.deployCount ||= {};
   s.world.populationHistory ||= [0];
+  if (s.world.cumulativeCO2AvoidedGt == null) s.world.cumulativeCO2AvoidedGt = 0;
+  s.world.co2AvoidedHistory ||= [0];
   // Populations arrived in v0.4 — back-fill from the data file if missing, so
   // old-save resumes don't show "0 people" then snap to realistic values on
   // the first tick.
@@ -62,6 +85,25 @@ export function deserialize(blob) {
   s.meta.pendingEchoes ||= [];
   if (s.meta.lastEventTick == null) s.meta.lastEventTick = -999;
   if (s.meta.lastInteractiveTick == null) s.meta.lastInteractiveTick = -999;
+  // Dispatches log (v0.7+) — older saves just start with an empty feed; the
+  // first live beat after resume will populate it. autoPausedForDecision is
+  // a transient flag; always start cleared so a crashed session doesn't
+  // leave the game stuck in auto-pause on resume.
+  s.meta.dispatches ||= [];
+  s.meta.autoPausedForDecision = false;
+  // activeEvents is dropped on load (see above), so any dispatch that was
+  // still "needs action" is now orphaned — its eventId no longer resolves
+  // to anything. Mark it answered so the UI doesn't show a Decide button
+  // that goes nowhere, and so the tab badge doesn't pulse forever.
+  if (s.meta.dispatches?.length) {
+    for (const d of s.meta.dispatches) {
+      if (d.needsAction) {
+        d.needsAction = false;
+        d.read = true;
+        d.detail = d.detail || 'Decision expired on resume.';
+      }
+    }
+  }
   // Collectables have DOM-coupled lifetime tracking; drop them on load and
   // let CollectableSystem respawn fresh ones.
   s.collectables = [];
@@ -75,6 +117,9 @@ export function deserialize(blob) {
     s.advisors.telemetry ||= { deployLog: [], collectablesClaimed: 0 };
     s.advisors.telemetry.deployLog ||= [];
     s.advisors.whisperedEventIds ||= [];
+    // Conflict-repeat tracking (added post-launch — older saves may lack it).
+    if (s.advisors.lastConflictId === undefined) s.advisors.lastConflictId = null;
+    s.advisors.firedConflictIds ||= [];
     s.advisors.deployDiscount ||= { pct: 0, count: 0 };
     if (s.advisors.freeDeploys == null) s.advisors.freeDeploys = 0;
     for (const id of ADVISOR_IDS) {
@@ -120,6 +165,8 @@ function backfillAdvisors() {
     seats,
     telemetry: { deployLog: [], collectablesClaimed: 0 },
     lastConflictTick: -999,
+    lastConflictId: null,
+    firedConflictIds: [],
     whisperedEventIds: [],
     deployDiscount: { pct: 0, count: 0 },
     freeDeploys: 0,
@@ -174,6 +221,78 @@ export function load() {
 export function clearSave() {
   try { localStorage.removeItem(STORAGE_KEY); }
   catch { /* ignore */ }
+}
+
+// ─── Slot-aware helpers. The autosave path (save / load / clearSave / hasSave
+//     / readSaveMeta) still writes to STORAGE_KEY unchanged; these helpers let
+//     the UI address other slots by id without touching the autosave. ────────
+
+function keyFor(slotId) {
+  return SLOT_KEYS[slotId] ?? null;
+}
+
+export function saveToSlot(slotId, state) {
+  const key = keyFor(slotId);
+  if (!key) return false;
+  try {
+    const blob = serialize(state);
+    localStorage.setItem(key, JSON.stringify(blob));
+    return true;
+  } catch (err) {
+    console.warn('[save] slot write failed:', slotId, err);
+    return false;
+  }
+}
+
+export function loadFromSlot(slotId) {
+  const key = keyFor(slotId);
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return deserialize(JSON.parse(raw));
+  } catch (err) {
+    console.warn('[save] slot read failed:', slotId, err);
+    return null;
+  }
+}
+
+export function readSlotMeta(slotId) {
+  const key = keyFor(slotId);
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const blob = JSON.parse(raw);
+    if (blob.schema !== SCHEMA) return null;
+    const s = blob.state;
+    return {
+      slotId,
+      savedAt: blob.savedAt,
+      homeCountryId: s.meta.homeCountryId,
+      year: s.meta.year,
+      quarter: s.meta.quarter,
+      tempAnomalyC: s.world.tempAnomalyC,
+      co2ppm: s.world.co2ppm,
+    };
+  } catch { return null; }
+}
+
+export function deleteSlot(slotId) {
+  const key = keyFor(slotId);
+  if (!key) return false;
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch { return false; }
+}
+
+export function listSlots() {
+  return ALL_SLOT_IDS.map(id => ({
+    id,
+    label: SLOT_LABELS[id],
+    meta: readSlotMeta(id),
+  }));
 }
 
 // Install an auto-save driver. Writes every `intervalMs` of wall-clock time

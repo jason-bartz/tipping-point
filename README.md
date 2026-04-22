@@ -99,7 +99,7 @@ Final grade bands: **S** perfect or (≤350 ppm & ≤1.5°C) · **A** (≤375 & 
 Vanilla JS modules + Vite. No framework. The single source of truth is `GameState`; systems mutate it, UI reads it. Systems never call each other directly — everything flows through `EventBus`. Every random draw goes through a **seeded mulberry32** RNG on `state.meta.rng`, so saves and replays stay coherent.
 
 ```
-greenprint/
+tipping-point/
 ├── index.html                 # Slim shell (no inline logic)
 ├── package.json / vite.config.js
 ├── src/
@@ -169,7 +169,7 @@ bun run preview      # serve the dist/ build locally
 
 ## Save / Resume
 
-Progress autosaves every 20s and on every meaningful event (deploy, research complete, Net Zero, tab close). The country-select screen shows a **Resume** banner when a save exists. Save format is versioned (`greenprint.save.v1`); mismatches are dropped safely.
+Progress autosaves every 20s and on every meaningful event (deploy, research complete, Net Zero, tab close). The country-select screen shows a **Resume** banner when a save exists. Save format is versioned (`tipping-point.save.v1`); mismatches are dropped safely.
 
 ## Keyboard
 

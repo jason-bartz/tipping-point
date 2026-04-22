@@ -29,7 +29,7 @@ const BRANCH_EXPLAIN = {
   policy:    'Policy coverage — pricing, bans, subsidies aligned with net zero.',
 };
 
-const LEGEND_KEY = 'greenprint.countryPanelLegendSeen.v1';
+const LEGEND_KEY = 'tipping-point.countryPanelLegendSeen.v1';
 const legendDismissed = () => { try { return localStorage.getItem(LEGEND_KEY) === '1'; } catch { return false; } };
 const markLegendDismissed = () => { try { localStorage.setItem(LEGEND_KEY, '1'); } catch { /* ignore */ } };
 
@@ -46,13 +46,14 @@ export class CountryPanel {
 
     bus.on(EVT.COUNTRY_SELECTED, ({ id }) => { this.selectedId = id; this._render(); });
     bus.on(EVT.TICK,              () => this._updateSoft());
-    // A deploy mutates diminishing-returns state + will, both of which change
-    // card *structure* (diminishing hint appears, synergy chip counts may
-    // shift). Soft-patch isn't enough — do a full re-render but only when it
-    // affects the country currently displayed.
-    bus.on(EVT.DEPLOYED,          ({ country }) => {
-      if (country?.id === this.selectedId) this._render();
-      else this._updateSoft();
+    // On deploy we soft-patch so the sector-tab-fill's CSS width transition
+    // runs visibly (400ms ease) and the diminishing hint slides into place
+    // without destroying the DOM. Full _render() only on research (list
+    // structure actually changes) or country switch.
+    bus.on(EVT.DEPLOYED,          ({ country, activity }) => {
+      if (country?.id !== this.selectedId) { this._updateSoft(); return; }
+      this._updateSoft();
+      if (activity?.branch) this._pulseSector(activity.branch);
     });
     bus.on(EVT.RESEARCH_DONE,     () => this._render()); // list changed
     bus.on(EVT.DEPLOY_FAILED,     (p) => this._onDeployFailed(p));
@@ -327,24 +328,68 @@ export class CountryPanel {
     const gate = politicalGate(s, country, activity);
     const cp = s.world.climatePoints;
     const canAfford = cp >= projection.effectiveCost;
-    const blocked = !gate.allowed || !canAfford;
+    const capReached = projection.capReached;
+    const blocked = !gate.allowed || !canAfford || capReached;
 
     btn.disabled = blocked;
     btn.classList.toggle('blocked', blocked);
     btn.classList.toggle('gate-blocked', !gate.allowed);
+    btn.classList.toggle('cap-reached', capReached);
+    // Annotate so CSS / tooltips can show "2/3" state if desired.
+    btn.dataset.deploys = String(projection.prevDeploys);
+    btn.dataset.cap     = String(projection.maxPerPair);
 
     const costEl = btn.querySelector('.deploy-btn-cost');
     if (costEl) costEl.textContent = `${projection.effectiveCost} ●`;
 
     const ctaEl = btn.querySelector('.deploy-btn-cta');
     if (ctaEl) {
-      if (!gate.allowed) ctaEl.textContent = 'Locked';
-      else if (!canAfford) ctaEl.textContent = `Need ${projection.effectiveCost} ●`;
-      else ctaEl.textContent = 'Deploy';
+      if (capReached)         ctaEl.textContent = `Maxed (${projection.prevDeploys}/${projection.maxPerPair})`;
+      else if (!gate.allowed) ctaEl.textContent = 'Locked';
+      else if (!canAfford)    ctaEl.textContent = `Need ${projection.effectiveCost} ●`;
+      else if (projection.prevDeploys > 0) ctaEl.textContent = `Deploy (${projection.prevDeploys + 1}/${projection.maxPerPair})`;
+      else                    ctaEl.textContent = 'Deploy';
+    }
+
+    // Keep the effect line in sync — on the first deploy a "was +X% · diminishing"
+    // sibling appears next to the effect chip; on subsequent deploys its numbers
+    // drift. Patching here avoids a full re-render on EVT.DEPLOYED.
+    const row = btn.querySelector('.deploy-btn-effect-row');
+    if (row) {
+      const branch = BRANCHES[activity.branch];
+      const effectPct = Math.round(projection.effectiveYield * 100);
+      const basePct   = Math.round(projection.baseYield * 100);
+      const effEl = row.querySelector('.deploy-btn-effect');
+      if (effEl) effEl.textContent = `+${effectPct}% ${branch.label}`;
+      let dimEl = row.querySelector('.deploy-btn-diminish');
+      if (projection.prevDeploys > 0) {
+        if (!dimEl) {
+          dimEl = document.createElement('span');
+          dimEl.className = 'deploy-btn-diminish';
+          dimEl.title = 'Each repeated deploy of this activity here is less effective. Try a different card to push the sector further.';
+          row.appendChild(dimEl);
+        }
+        dimEl.textContent = `was +${basePct}% · diminishing`;
+      } else if (dimEl) {
+        dimEl.remove();
+      }
     }
   }
 
-  _onDeployFailed({ country, activity, reason, cost, threshold, have }) {
+  _pulseSector(branch) {
+    const tab = this.root.querySelector(`.sector-tab[data-sector="${branch}"]`);
+    if (!tab) return;
+    const fill = tab.querySelector('.sector-tab-fill');
+    for (const [el, cls, dur] of [[fill, 'gp-fill-pulse', 700], [tab, 'gp-sector-pulse', 550]]) {
+      if (!el) continue;
+      el.classList.remove(cls);
+      void el.offsetWidth; // reflow → restart animation
+      el.classList.add(cls);
+      setTimeout(() => el.classList.remove(cls), dur);
+    }
+  }
+
+  _onDeployFailed({ country, activity, reason, cost, threshold, have, cap }) {
     if (country && country.id !== this.selectedId) return;
     const msg = {
       insufficient_cp: `Need ${cost ?? ''} Credits for ${activity?.name ?? 'this deploy'}.`,
@@ -352,14 +397,14 @@ export class CountryPanel {
       no_country:      'Pick a country first.',
       no_activity:     'No activity selected.',
       will_gate:       `Political Will too low for ${activity?.name ?? 'this'} (need ${threshold}, have ${Math.round(have ?? 0)}). Build consent first.`,
+      pair_cap:        `${country?.name ?? 'This country'} has hit the ${cap ?? 3}× limit on ${activity?.name ?? 'this activity'}. Try a different country.`,
     }[reason] ?? 'Deploy failed.';
     showToast("Can't deploy", msg, 'bad');
 
     const btn = activity && this.root.querySelector(`.deploy-btn[data-id="${activity.id}"]`);
     if (btn) {
       btn.classList.remove('gp-shake');
-      // eslint-disable-next-line no-unused-expressions
-      btn.offsetWidth; // reflow → restart animation
+      void btn.offsetWidth; // reflow → restart animation
       btn.classList.add('gp-shake');
       setTimeout(() => btn.classList.remove('gp-shake'), 400);
     }

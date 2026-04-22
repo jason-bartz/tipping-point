@@ -204,12 +204,26 @@ export class AdvisorSystem {
     const advisors = s.advisors;
     if (!advisors) return;
     if (s.activeEvents?.length) return;                   // don't compete with events
+    // Startup grace — the advisors need a few rounds of play to form opinions
+    // worth arguing about, and pool events get first crack at the opening.
+    if (now < (BALANCE.advisor.conflictStartupGraceTicks ?? 0)) return;
     if (now - (advisors.lastConflictTick ?? -999) < BALANCE.advisor.conflictMinTickGap) return;
     if (s.meta.rng.random() > BALANCE.advisor.conflictBaseChance) return;
 
-    const eligible = CONFLICT_POOL.filter(c => {
+    // Eligibility: both sides above the influence threshold, AND — to avoid
+    // the same conflict firing twice in a row — exclude whichever conflict
+    // was most recently resolved. When every remaining conflict has already
+    // been seen this game, reset the recency filter so the pool rotates.
+    const seenIds = advisors.firedConflictIds ?? [];
+    const lastId  = advisors.lastConflictId ?? null;
+    let eligible = CONFLICT_POOL.filter(c => {
+      if (c.id === lastId) return false;
       return c.between.every(id => (advisors.seats[id]?.influence ?? 0) >= BALANCE.advisor.conflictMinInfluence);
     });
+    // Prefer conflicts the player hasn't seen yet; only fall back to repeats
+    // once the pool has rotated through.
+    const fresh = eligible.filter(c => !seenIds.includes(c.id));
+    if (fresh.length) eligible = fresh;
     if (!eligible.length) return;
     const chosen = s.meta.rng.pick(eligible);
     if (!chosen) return;
@@ -263,6 +277,19 @@ export class AdvisorSystem {
     };
     s.activeEvents.push({ ...evt, firedTick: now, _ctx: {} });
     advisors.lastConflictTick = now;
+    advisors.lastConflictId = chosen.id;
+    advisors.firedConflictIds ||= [];
+    if (!advisors.firedConflictIds.includes(chosen.id)) advisors.firedConflictIds.push(chosen.id);
+    // If every conflict has been seen, clear the history so the pool cycles
+    // fresh. Keep `lastConflictId` so we still avoid an immediate repeat.
+    if (advisors.firedConflictIds.length >= CONFLICT_POOL.length) {
+      advisors.firedConflictIds = [];
+    }
+    // Conflicts are interactive events — share both cadences so neither the
+    // pool-interactive nor the passive track fires a beat immediately after
+    // the conflict modal resolves.
+    s.meta.lastInteractiveTick = now;
+    s.meta.lastEventTick = now;
     this.b.emit(EVT.ADVISOR_CONFLICT, { conflictId: chosen.id, between: chosen.between });
     this.b.emit(EVT.EVENT_FIRED, { event: evt, headline: evt.headline, tone: 'info' });
   }

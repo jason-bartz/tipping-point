@@ -30,13 +30,22 @@ export class NewsSystem {
 
   tick() {
     this._sinceAnyNews += 1;
+    // Respect the same opening quiet that EventSystem honors, so the ticker
+    // doesn't spill a flavor headline in the first few seconds of play.
+    if (this.s.meta.tick < (BALANCE.newsFlavorStartupGraceTicks ?? 0)) return;
     if (this.s.meta.tick - this._lastFlavorTick < 3) return;
     if (this._sinceAnyNews < 2) return;
     const rng = this.s.meta.rng;
     if (rng.random() > 0.22) return;
 
-    const pick = rng.pick(NEWS_POOL);
-    const text = typeof pick === 'function' ? pick(this.s) : pick;
+    // Try up to 4 picks — context-sensitive templates return null when their
+    // precondition doesn't hold, and we'd rather show a static line than
+    // silently skip the tick.
+    let text = null;
+    for (let i = 0; i < 4 && !text; i++) {
+      const pick = rng.pick(NEWS_POOL);
+      text = typeof pick === 'function' ? pick(this.s) : pick;
+    }
     if (text) {
       this.push(text, 'flavor');
       this._lastFlavorTick = this.s.meta.tick;

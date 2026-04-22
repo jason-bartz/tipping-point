@@ -53,6 +53,18 @@ export const EVT = {
   ADVISOR_CONFLICT: 'advisorConflict',
   ADVISOR_WHISPER: 'advisorWhisper',
   ADVISOR_ABILITY_USED: 'advisorAbilityUsed',
+  // Fired when a player resolves an interactive event. Carries a concrete,
+  // human-readable effects summary so the UI can surface the outcome
+  // immediately (toast, receipt, etc.) — separate from the flavor headline
+  // that goes to the news ticker.
+  DECISION_RESOLVED: 'decisionResolved',
+  // Fired when a new dispatch lands in the persistent log. Panels listen so
+  // they can badge the unread count and animate the new row. Payload is the
+  // dispatch record (see model/Dispatches.js).
+  DISPATCH_LOGGED: 'dispatchLogged',
+  // Fired when the unread set changes (new dispatch, mark-read, mark-all).
+  // Tab badge listens to this so it can update without re-reading state.
+  DISPATCH_UNREAD_CHANGED: 'dispatchUnreadChanged',
   WON: 'won',
   LOST: 'lost',
 };

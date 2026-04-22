@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "greenprint",
+      "name": "tipping-point",
       "dependencies": {
         "@fontsource/press-start-2p": "^5.2.7",
         "@fontsource/vt323": "^5.2.7",

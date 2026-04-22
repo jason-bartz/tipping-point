@@ -31,6 +31,21 @@ export function diminishingMultiplier(count) {
   return Math.max(floor, Math.pow(base, count));
 }
 
+// Escalation multiplier applied to the base cost for the Nth deploy.
+// 1.0 for the first deploy, `deployCostEscalation^n` after that.
+export function escalationMultiplier(count) {
+  const e = BALANCE.deployCostEscalation ?? 1;
+  if (e <= 1) return 1;
+  return Math.pow(e, count);
+}
+
+// Whether another deploy of this (country, activity) pair is allowed under
+// the per-pair cap. Tier above which spam becomes impossible as a hard rule.
+export function pairCapReached(state, countryId, activityId) {
+  const cap = BALANCE.deployMaxPerPair ?? Infinity;
+  return deployCountFor(state, countryId, activityId) >= cap;
+}
+
 // Full projection of a deploy: every number the UI or engine could want,
 // with a `breakdown` trail for the tooltip. No side effects.
 //
@@ -39,14 +54,16 @@ export function diminishingMultiplier(count) {
 //     baseYield, effectiveYield,         // adoption gain numbers
 //     baseCost, effectiveCost,            // credit cost numbers
 //     diminishingMult, synergyYieldMult,  // individual multipliers
+//     escalationMult,                     // cost mult from repeat deploys
 //     synergies,                          // list of active synergy defs
-//     prevDeploys,                        // how many times this was run
+//     prevDeploys, capReached,            // pair-cap bookkeeping
 //     costBreakdown, yieldBreakdown,      // human-readable reason lines
 //   }
 export function projectDeploy(state, country, activity) {
   const mod = state?.meta?.mod;
   const prevDeploys = deployCountFor(state, country.id, activity.id);
   const diminishingMult = diminishingMultiplier(prevDeploys);
+  const escalationMult  = escalationMultiplier(prevDeploys);
   const synergies = activeSynergiesFor(state, activity);
   const combined = combineEffects(synergies);
 
@@ -54,7 +71,7 @@ export function projectDeploy(state, country, activity) {
   const effectiveYield = Math.min(1, baseYield * diminishingMult * combined.yieldMult);
 
   const baseCost = deployCost(state, country, activity, mod);
-  const effectiveCost = Math.max(1, Math.round(baseCost * combined.costMult));
+  const effectiveCost = Math.max(1, Math.round(baseCost * combined.costMult * escalationMult));
 
   const yieldBreakdown = [];
   if (prevDeploys > 0) {
@@ -75,6 +92,13 @@ export function projectDeploy(state, country, activity) {
   }
 
   const costBreakdown = [];
+  if (prevDeploys > 0 && escalationMult !== 1) {
+    costBreakdown.push({
+      id: 'escalation',
+      label: `Repeat deploy × ${prevDeploys}`,
+      mult: escalationMult,
+    });
+  }
   for (const s of synergies) {
     if (s.effect?.costMult != null && s.effect.costMult !== 1) {
       costBreakdown.push({
@@ -91,11 +115,14 @@ export function projectDeploy(state, country, activity) {
     baseCost,
     effectiveCost,
     diminishingMult,
+    escalationMult,
     synergyYieldMult: combined.yieldMult,
     synergyCostMult:  combined.costMult,
     synergyWillMult:  combined.willCostMult,
     synergies,
     prevDeploys,
+    capReached: pairCapReached(state, country.id, activity.id),
+    maxPerPair: BALANCE.deployMaxPerPair ?? Infinity,
     yieldBreakdown,
     costBreakdown,
   };

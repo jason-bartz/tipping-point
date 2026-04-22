@@ -7,6 +7,8 @@ import {
   recordDeploy,
   deployCountFor,
   diminishingMultiplier,
+  escalationMultiplier,
+  pairCapReached,
 } from '../DeployEconomy.js';
 import { BALANCE } from '../../config/balance.js';
 
@@ -117,6 +119,60 @@ describe('projectDeploy — synergies', () => {
     const p = projectDeploy(state, BASE_COUNTRY, evSub);
     const expectedBase = 0.15 * (BALANCE.deployDiminishingBase ** 2) * 1.5;
     expect(p.effectiveYield).toBeCloseTo(expectedBase, 5);
+  });
+});
+
+describe('escalationMultiplier', () => {
+  it('is 1 on the first deploy', () => {
+    expect(escalationMultiplier(0)).toBe(1);
+  });
+
+  it('compounds geometrically with deployCostEscalation', () => {
+    const e = BALANCE.deployCostEscalation;
+    expect(escalationMultiplier(1)).toBeCloseTo(e, 5);
+    expect(escalationMultiplier(2)).toBeCloseTo(e * e, 5);
+  });
+});
+
+describe('projectDeploy — cost escalation + pair cap', () => {
+  const makeCountry = () => ({ id: 'TST', isHome: false, infra: 'service', politicalWill: 60 });
+  const makeActivity = () => ({ id: 'solar_power', branch: 'energy', deployCost: 4, deployAdoption: 0.15 });
+
+  it('first deploy pays base cost; repeat deploys pay escalated cost', () => {
+    const state = makeState();
+    const first = projectDeploy(state, makeCountry(), makeActivity());
+    expect(first.effectiveCost).toBe(4);
+    expect(first.escalationMult).toBe(1);
+
+    state.world.deployCount = { TST: { solar_power: 1 } };
+    const second = projectDeploy(state, makeCountry(), makeActivity());
+    expect(second.effectiveCost).toBe(Math.round(4 * BALANCE.deployCostEscalation));
+    expect(second.escalationMult).toBeCloseTo(BALANCE.deployCostEscalation, 5);
+  });
+
+  it('projection flags capReached once the pair maxes out', () => {
+    const state = makeState({ deployCount: { TST: { solar_power: BALANCE.deployMaxPerPair } } });
+    const p = projectDeploy(state, makeCountry(), makeActivity());
+    expect(p.capReached).toBe(true);
+    expect(p.maxPerPair).toBe(BALANCE.deployMaxPerPair);
+  });
+
+  it('costBreakdown labels the escalation multiplier', () => {
+    const state = makeState({ deployCount: { TST: { solar_power: 2 } } });
+    const p = projectDeploy(state, makeCountry(), makeActivity());
+    expect(p.costBreakdown.some(b => b.id === 'escalation')).toBe(true);
+  });
+});
+
+describe('pairCapReached', () => {
+  it('is false below the cap', () => {
+    const state = makeState({ deployCount: { TST: { solar_power: 1 } } });
+    expect(pairCapReached(state, 'TST', 'solar_power')).toBe(false);
+  });
+
+  it('is true at the cap', () => {
+    const state = makeState({ deployCount: { TST: { solar_power: BALANCE.deployMaxPerPair } } });
+    expect(pairCapReached(state, 'TST', 'solar_power')).toBe(true);
   });
 });
 

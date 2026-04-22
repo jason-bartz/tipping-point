@@ -3,7 +3,7 @@
 import { installModalA11y } from './modal-a11y.js';
 import { showGlossary } from './Glossary.js';
 
-const SEEN_KEY = 'greenprint.tutorialSeen.v3';
+const SEEN_KEY = 'tipping-point.tutorialSeen.v3';
 
 export function hasSeenTutorial() {
   try { return localStorage.getItem(SEEN_KEY) === '1'; }

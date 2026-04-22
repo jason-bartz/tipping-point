@@ -7,8 +7,10 @@
 //   M           — toggle mute
 //   H / ?       — open help
 //   S           — open stats
+//   ,           — open settings
+//   A           — open achievements
 
-export function installKeyboard(loop, { onHelp, onStats, onMute } = {}) {
+export function installKeyboard(loop, { onHelp, onStats, onMute, onSettings, onAchievements } = {}) {
   const handler = (e) => {
     if (!e || e.defaultPrevented) return;
     if (e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
@@ -35,6 +37,13 @@ export function installKeyboard(loop, { onHelp, onStats, onMute } = {}) {
       case 'S':
         // Don't steal browser save; only match when no modal is open.
         if (!document.querySelector('.modal')) onStats?.();
+        break;
+      case ',':
+        if (!document.querySelector('.modal')) onSettings?.();
+        break;
+      case 'a':
+      case 'A':
+        if (!document.querySelector('.modal')) onAchievements?.();
         break;
       default: return;
     }

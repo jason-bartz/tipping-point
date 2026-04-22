@@ -3,9 +3,11 @@
 //
 // ─── Spread ────────────────────────────────────────────────────────────────
 // A country's adoption in a branch leaks to its neighbors proportional to the
-// adoption gap. Three multipliers gate the rate:
+// adoption gap. Four multipliers gate the rate:
 //   - adjacencySpreadRate    (global constant, BALANCE)
-//   - profile.spreadMult     (country-specific, e.g. Nordic +25%)
+//   - profile.spreadMult     (home-country-directional: caller passes this
+//                             mod ONLY when donor.isHome, so Nordic's +25%
+//                             applies only to spread FROM the Nordic bloc)
 //   - resistance(recipient)  (petrostates resist energy/policy, agricultural
 //                             economies welcome land reform)
 //   - will / 100             (political appetite — a 30-will country absorbs

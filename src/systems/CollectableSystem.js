@@ -100,7 +100,10 @@ export class CollectableSystem {
     el.setAttribute('data-id', spawn.id);
     el.setAttribute('title', tooltip);
     el.setAttribute('aria-label', tooltip);
-    el.addEventListener('click', (e) => { e.stopPropagation(); this._claim(spawn.id); });
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._claim(spawn.id, { clientX: e.clientX, clientY: e.clientY });
+    });
     this.layer.appendChild(el);
     this.elById.set(spawn.id, el);
   }
@@ -111,7 +114,7 @@ export class CollectableSystem {
     this.elById.delete(id);
   }
 
-  _claim(id) {
+  _claim(id, originCoords) {
     const idx = this.s.collectables.findIndex(c => c.id === id);
     if (idx === -1) return;
     const [c] = this.s.collectables.splice(idx, 1);
@@ -121,13 +124,23 @@ export class CollectableSystem {
     const body = this._applyEffect(c, country);
 
     const el = this.elById.get(id);
+    let coords = originCoords;
     if (el) {
+      if (!coords) {
+        const r = el.getBoundingClientRect();
+        coords = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+      }
       el.classList.add('claimed');
       setTimeout(() => { el.remove(); this.elById.delete(id); }, 600);
     }
 
     const typeDef = COLLECTABLE_TYPES[c.type];
-    this.b.emit(EVT.COLLECTABLE_CLAIMED, { title: `${typeDef.icon} ${typeDef.label}`, body, tone: 'good', type: c.type, value: c.value, countryId: c.countryId });
+    this.b.emit(EVT.COLLECTABLE_CLAIMED, {
+      title: `${typeDef.icon} ${typeDef.label}`,
+      body, tone: 'good', type: c.type, value: c.value, countryId: c.countryId,
+      clientX: coords?.clientX, clientY: coords?.clientY,
+      floatLabel: `+${c.value} ●`,
+    });
   }
 
   _applyEffect(c, country) {

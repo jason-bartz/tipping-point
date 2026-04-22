@@ -2,6 +2,9 @@
 // used to fire. `onAgain` is passed in so the host controls reset behavior —
 // we don't want to reload the page anymore, just return to country select.
 
+import { showAchievements } from './AchievementsModal.js';
+import { readNew } from '../model/Achievements.js';
+
 function escapeHTML(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -18,6 +21,9 @@ function decisionsHTML(decisions) {
   if (!decisions?.length) return '';
   const rows = decisions.map(d => {
     const when = `Q${d.quarter} ${d.year}`;
+    const summaryLine = d.effectsSummary
+      ? `<div class="decision-summary">${escapeHTML(d.effectsSummary)}</div>`
+      : '';
     const echoLine = d.echoHeadline
       ? `<div class="decision-echo">Later — ${escapeHTML(d.echoHeadline)}</div>`
       : '';
@@ -26,6 +32,7 @@ function decisionsHTML(decisions) {
       <div class="decision-body">
         <div class="decision-title">${escapeHTML(d.title)}</div>
         <div class="decision-choice">You chose: <strong>${escapeHTML(d.choiceLabel)}</strong></div>
+        ${summaryLine}
         <div class="decision-reaction">${escapeHTML(d.choiceHeadline)}</div>
         ${echoLine}
       </div>
@@ -60,9 +67,17 @@ export function showEndScreen(state, payload, won, { onAgain } = {}) {
       <div class="stat"><label>Year</label><span>${state.meta.year}</span></div>
     </div>
     ${won ? decisionsHTML(state.meta.decisions) : ''}
-    <button class="again">Play Again</button>`;
+    <div class="end-actions">
+      <button class="end-achievements" type="button">
+        Achievements${readNew().size ? ` <span class="end-ach-badge">${readNew().size} new</span>` : ''}
+      </button>
+      <button class="again">Play Again</button>
+    </div>`;
 
   root.querySelector('.again')?.addEventListener('click', () => onAgain?.());
+  root.querySelector('.end-achievements')?.addEventListener('click', () => {
+    showAchievements({ state });
+  });
   document.getElementById('game').classList.remove('active');
   document.getElementById('end-screen').classList.add('active');
 }

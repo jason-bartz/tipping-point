@@ -1,8 +1,12 @@
 // Floating toast stack. Centered above the map; capped so a flurry of events
 // doesn't fill the screen. Duration matches the toastOut CSS keyframe.
+//
+// Toasts are now a brief "just happened" signal — the full text, and every
+// beat that scrolls by, lives in the Dispatches tab on the right panel. So
+// they can be short, quiet, and transient without losing any information.
 
-const MAX_TOASTS = 3;
-const TOAST_MS = 6000;
+const MAX_TOASTS = 2;
+const TOAST_MS = 3500;
 
 let stack = null;
 

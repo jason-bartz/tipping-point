@@ -1,12 +1,27 @@
-// Pixel-art flag assets for the 10 starter countries. Files live in
-// public/flags/{rect,wave}/{id}.png — `rect` is the static 16×12 flag used
-// in the sidebar header, `wave` is a 16×15 waving variant used on the larger
-// country-select cards. NDC (Nordic Bloc) is a composite of Denmark, Norway,
-// Sweden and Finland — 2×2 rect, 4-across wave.
+// Pixel-art flag assets. Files live in public/flags/{rect,wave}/{id}.png.
+// `rect` is the static 16×12 flag used in the sidebar header; `wave` is the
+// 16×13 variant used on the larger country-select cards. Every country on
+// the map has a flag.
 //
-// Returns null for any country without an asset so callers can skip the <img>.
+// Composite bloc flags (sized larger so the sub-flags stay legible):
+//   NDC (Nordic Bloc)      — DK + NO + SE + FI;         32×24 rect, 64×13 wave
+//   BEN (Benelux)          — BE + NL + LU;              32×24 rect, 48×13 wave
+//   GLF (Gulf States)      — AE + KW + QA + BH + OM;    48×24 rect, 80×13 wave
+//   SEA (Southeast Asia)   — PH + MY + SG + KH;         32×24 rect, 64×13 wave
+//   EAF (East Africa)      — KE + TZ + ET + UG;         32×24 rect, 64×13 wave
+//   EUE (Eastern Europe)   — RO + UA + MD;              32×24 rect, 48×13 wave
 
-const HAVE = new Set(['NDC', 'DEU', 'GBR', 'JPN', 'BRA', 'USA', 'CHN', 'IND', 'SAU', 'RUS']);
+const HAVE = new Set([
+  // Single-country flags
+  'USA', 'CAN', 'MEX', 'BRA', 'ARG',
+  'GBR', 'DEU', 'FRA', 'ITA', 'ESP', 'POL',
+  'RUS', 'CHN', 'JPN', 'KOR', 'IND', 'IDN', 'VNM', 'THA',
+  'IRN', 'SAU', 'TUR', 'EGY',
+  'ZAF', 'AUS',
+  // Composite bloc flags
+  'NDC', 'BEN', 'GLF', 'SEA', 'EAF', 'EUE',
+]);
+const BLOC_FLAGS = new Set(['NDC', 'BEN', 'GLF', 'SEA', 'EAF', 'EUE']);
 
 const BASE = import.meta.env?.BASE_URL ?? '/';
 
@@ -19,5 +34,5 @@ export function waveFlag(id) {
 }
 
 export function isBlocFlag(id) {
-  return id === 'NDC';
+  return BLOC_FLAGS.has(id);
 }

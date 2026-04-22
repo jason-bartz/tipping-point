@@ -15,7 +15,7 @@ import {
   clampWill,
   meetsNetZero,
 } from '../model/Adoption.js';
-import { projectDeploy, recordDeploy } from '../model/DeployEconomy.js';
+import { projectDeploy, recordDeploy, pairCapReached } from '../model/DeployEconomy.js';
 import { gate as politicalGate } from '../model/PoliticalGate.js';
 import { previewAdvisorDeployCost, commitAdvisorDeployCost } from './AdvisorSystem.js';
 
@@ -33,15 +33,19 @@ export class AdoptionSystem {
     const countries = Object.values(this.state.countries);
 
     // Cross-border diffusion — one pass per branch over the adjacency graph.
+    // The home country's spreadMult is directional: it applies only when the
+    // donor is home, so "tech you deploy at home spreads 25% faster to
+    // neighbors" is literally what happens. Non-home spreads run at base rate.
     for (const branch of Object.keys(BRANCHES)) {
       for (const donor of countries) {
         if ((donor.adoption[branch] ?? 0) <= 0) continue;
+        const donorMod = donor.isHome ? this.mod : null;
         for (const nId of donor.neighbors ?? []) {
           const recipient = this.state.countries[nId];
           if (!recipient) continue;
           const gap = donor.adoption[branch] - (recipient.adoption[branch] ?? 0);
           if (gap <= 0) continue;
-          const fraction = spreadFraction(recipient, branch, this.mod);
+          const fraction = spreadFraction(recipient, branch, donorMod);
           recipient.adoption[branch] = Math.min(1, (recipient.adoption[branch] ?? 0) + gap * fraction);
         }
       }
@@ -73,6 +77,13 @@ export class AdoptionSystem {
     if (!c)                                   return this._fail({ reason: 'no_country' });
     if (!activity)                            return this._fail({ reason: 'no_activity' });
     if (!s.world.researched.has(activity.id)) return this._fail({ country: c, activity, reason: 'not_researched' });
+
+    // Per-pair hard cap. Blocks infinite spam once a country has absorbed
+    // the max number of this activity — the cost escalation still biases
+    // against repeat deploys on the way up to the cap.
+    if (pairCapReached(s, c.id, activity.id)) {
+      return this._fail({ country: c, activity, reason: 'pair_cap', cap: BALANCE.deployMaxPerPair });
+    }
 
     const verdict = politicalGate(s, c, activity);
     if (!verdict.allowed) {

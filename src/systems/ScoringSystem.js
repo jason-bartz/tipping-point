@@ -3,6 +3,15 @@
 // this class is a thin writer that persists peak trackers and emits WON/LOST.
 
 import { BALANCE } from '../config/balance.js';
+// Sum of pre-adoption country emissions — the "BAU baseline" we compare
+// against to compute what clean deployment has prevented. Pulled out for
+// clarity; CarbonSystem already applies BAU drift each tick, so reading
+// baseEmissionsGtCO2 here gives the correct current-BAU baseline.
+function bauBaselineGt(state) {
+  let t = 0;
+  for (const c of Object.values(state.countries)) t += c.baseEmissionsGtCO2 ?? 0;
+  return t;
+}
 import { EVT } from '../core/EventBus.js';
 import {
   evaluateOutcome,
@@ -14,6 +23,7 @@ import {
 const HISTORY_FIELDS = [
   'tempHistory', 'co2History', 'emissionsHistory',
   'adoptionHistory', 'nzHistory', 'willHistory', 'stressHistory',
+  'co2AvoidedHistory',
 ];
 
 export class ScoringSystem {
@@ -42,6 +52,10 @@ export class ScoringSystem {
     w.nzHistory.push(nzCount);
     w.willHistory.push(worldAvgWill(s));
     w.stressHistory.push(w.societalStress ?? 0);
+
+    const avoidedAnnualGt = Math.max(0, bauBaselineGt(s) - (w.annualEmissionsGtCO2 ?? 0));
+    w.cumulativeCO2AvoidedGt = (w.cumulativeCO2AvoidedGt ?? 0) + avoidedAnnualGt / BALANCE.ticksPerYear;
+    w.co2AvoidedHistory.push(w.cumulativeCO2AvoidedGt);
 
     const cap = BALANCE.historyLength;
     for (const key of HISTORY_FIELDS) {

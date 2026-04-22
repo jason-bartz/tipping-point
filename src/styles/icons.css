@@ -29,3 +29,22 @@
 .gi-diamond   { mask-image: url('/icons/diamond.svg');   -webkit-mask-image: url('/icons/diamond.svg'); }
 .gi-stopwatch { mask-image: url('/icons/stopwatch.svg'); -webkit-mask-image: url('/icons/stopwatch.svg'); }
 .gi-pie       { mask-image: url('/icons/pie.svg');       -webkit-mask-image: url('/icons/pie.svg'); }
+
+/* HUD pixel-icon buttons — 16×16 PNG sprites from the 1-bit Pixel Icons set.
+   Rendered as <img> with pixelated image-rendering so the browser upscales
+   nearest-neighbor (each source pixel becomes an exact 2×2 block at 32×32).
+   Mask-based tinting was tried first but shrunk the 16px detail into unreadable
+   blobs on a 40px button. */
+.hud-icon {
+  display: block;
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  flex-shrink: 0;
+  user-select: none;
+  pointer-events: none;
+}
+/* When a mute button flips into its alert (red) state, invert the dark icon
+   to white so it reads against the red fill. */
+.hud-toolbtn.mute-btn.muted .hud-icon { filter: invert(1); }

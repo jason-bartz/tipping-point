@@ -138,6 +138,51 @@ export function showStatsModal(state) {
             <div class="stats-range"><span>climate impact starts +1.5°C</span><span>shielded by adoption</span></div>
           </div>`;
         })()}
+
+        ${(() => {
+          // Sea level rise — derived from temp anomaly. ~20 cm per °C is the
+          // IPCC-ish ballpark for committed rise over the century; the peak
+          // clamp reflects thermal inertia (ocean keeps rising after warming
+          // stops, so "best so far" is the SLR locked in, not the current temp).
+          const slrFromTemp = t => Math.max(0, t) * 20;
+          const curSlr  = Math.max(slrFromTemp(w.tempAnomalyC), slrFromTemp(w.peakTempAnomalyC ?? w.tempAnomalyC));
+          const slrHistory = (w.tempHistory ?? []).map(slrFromTemp);
+          // Ratchet: sparkline never regresses below what was committed.
+          for (let i = 1; i < slrHistory.length; i++) {
+            if (slrHistory[i] < slrHistory[i - 1]) slrHistory[i] = slrHistory[i - 1];
+          }
+          const peakSlr = slrHistory.length ? Math.max(...slrHistory, curSlr) : curSlr;
+          const slrMin = 0;
+          const slrMax = Math.max(slrFromTemp(BALANCE.lossTempC), peakSlr);
+          return `<div class="stats-card-inner">
+            <div class="stats-label">Sea Level Rise <span class="stats-peak">committed ${peakSlr.toFixed(1)} cm</span></div>
+            <div class="stats-big">${curSlr.toFixed(1)} cm</div>
+            ${sparkline(slrHistory, { stroke: '#0284c7', fill: 'rgba(2,132,199,0.18)', minY: slrMin, maxY: slrMax })}
+            <div class="stats-range"><span>pre-industrial 0</span><span>+4°C ≈ ${slrFromTemp(BALANCE.lossTempC).toFixed(0)} cm</span></div>
+          </div>`;
+        })()}
+
+        ${(() => {
+          // CO₂ Avoided — cumulative Gt kept out of the atmosphere vs. the
+          // no-adoption BAU baseline. Rises monotonically as long as clean
+          // deployment exceeds zero, which makes for a very satisfying "score".
+          const avoidedHistory = w.co2AvoidedHistory ?? [0];
+          const curAvoided = w.cumulativeCO2AvoidedGt ?? 0;
+          const recentDelta = avoidedHistory.length >= 6
+            ? curAvoided - avoidedHistory[Math.max(0, avoidedHistory.length - 6)]
+            : 0;
+          // "Per year" rate from the last ~4 ticks (= 1 in-game year).
+          const perYear = avoidedHistory.length >= 5
+            ? curAvoided - avoidedHistory[Math.max(0, avoidedHistory.length - 5)]
+            : curAvoided;
+          const avoidedMax = Math.max(...avoidedHistory, curAvoided, 1);
+          return `<div class="stats-card-inner">
+            <div class="stats-label">CO₂ Avoided <span class="stats-peak">${perYear >= 0 ? '+' : ''}${perYear.toFixed(1)} Gt/yr</span></div>
+            <div class="stats-big">${curAvoided.toFixed(1)} Gt ${trendArrow(recentDelta, false, 0.05)}</div>
+            ${sparkline(avoidedHistory, { stroke: '#10b981', fill: 'rgba(16,185,129,0.18)', minY: 0, maxY: avoidedMax })}
+            <div class="stats-range"><span>cumulative since start</span><span>vs. BAU baseline</span></div>
+          </div>`;
+        })()}
       </div>
 
       <div class="stats-columns">

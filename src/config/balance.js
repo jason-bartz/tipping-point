@@ -52,6 +52,11 @@ export const BALANCE = {
   interactiveMaxGapTicks: 30,
   interactiveChancePerTick: 0.15,
 
+  // News flavor ticker — separate from the event director. Shorter grace
+  // since a flavor blurb is quieter than a modal, but still enough that the
+  // ticker doesn't spout a headline in the first few seconds after unpause.
+  newsFlavorStartupGraceTicks: 4,
+
   // Business-as-usual emission growth: economies expand ~0.8%/yr without
   // intervention. Dampened per-country by adoption level.
   bauEmissionGrowthPerYear: 0.008,
@@ -76,6 +81,19 @@ export const BALANCE = {
   // This is the anti-spam-click mechanic. Raise the base to 1.0 to disable.
   deployDiminishingBase: 0.65,
   deployDiminishingFloor: 0.10,
+
+  // Hard cap on repeat deploys per (country, activity) pair. Combined with
+  // cost escalation below, this means the 1st deploy is a bargain, the 2nd
+  // is a deliberate reinforcement, the 3rd is a desperate push — and there
+  // is no 4th. Encourages spreading activities across countries instead of
+  // piling every deploy into one nation.
+  deployMaxPerPair: 3,
+  // Multiplier applied to the base deploy cost per previous deploy of the
+  // same pair. 2.0 means: 1st = 100% cost, 2nd = 200%, 3rd = 400%. Combined
+  // with the diminishing-yield curve, efficiency ratio goes 1.0 → 0.325 →
+  // 0.105 — so the third deploy delivers a tenth the adoption-per-credit
+  // of the first. Spam becomes economically self-limiting.
+  deployCostEscalation: 2.0,
 
   // ─── Political will gates on deploy. A country's effective threshold for
   // a "hard" deploy (mandates, taxes, phase-outs) is
@@ -131,9 +149,16 @@ export const BALANCE = {
     influenceOnConflictLoss: -5,
     // Ability gating
     abilityInfluenceThreshold: 80,
-    // Conflicts
+    // Conflicts. Grace ticks keep the first conflict from stepping on
+    // opening-round pool events (which have their own 6-tick grace); the
+    // longer ceiling means a conflict only emerges after the player has
+    // seen a few deploys/events and the advisors have something to argue
+    // about. Chance is halved from the original 0.12 so conflicts feel
+    // earned rather than constant. The anti-repeat tracker lives on the
+    // advisor state slice (see `lastConflictId`).
+    conflictStartupGraceTicks: 20,
     conflictMinTickGap: 20,
-    conflictBaseChance: 0.12,        // per-tick roll once the gap is met
+    conflictBaseChance: 0.06,
     conflictMinInfluence: 35,        // both sides must be above this to argue
     // Deploy log retention (for industrialist mood/deploys agenda)
     deployLogWindow: 20,

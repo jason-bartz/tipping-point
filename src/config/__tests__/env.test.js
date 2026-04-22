@@ -64,7 +64,7 @@ describe('env resolution', () => {
   });
 
   it('query string wins over stored value', async () => {
-    localStorage.setItem('greenprint.debug.v1', JSON.stringify({ debug: false }));
+    localStorage.setItem('tipping-point.debug.v1', JSON.stringify({ debug: false }));
     mockLocation('?debug=1');
     const mod = await import('../env.js');
     expect(mod.ENV.debug).toBe(true);

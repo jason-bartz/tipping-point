@@ -351,6 +351,8 @@ export const EVENT_POOL = [
           s.world.tempAnomalyC = Math.max(1.5, s.world.tempAnomalyC - 0.3);
           s.world.societalStress += 10;
         },
+        // apply() is imperative; hand-write the player-facing receipt.
+        summaryOverride: '−0.30°C immediate · +10 Stress',
         echo: { delayTicks: 18, tone: 'bad',
           headline: (s) => `Four years on, the aerosol program holds — temperature pinned near +${s.world.tempAnomalyC.toFixed(1)}°C. Nobody is sure how to end it.` } },
       { key: 'decline', label: 'Decline politely', headline: 'Offer declined. Billionaire tweets through it.', tone: 'good',

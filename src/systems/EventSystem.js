@@ -13,6 +13,7 @@ import { BALANCE } from '../config/balance.js';
 import { EVT } from '../core/EventBus.js';
 import { EVENT_POOL } from '../data/events.js';
 import { applyEffects } from '../model/Events.js';
+import { summarizeEffects } from '../model/EffectsSummary.js';
 
 export class EventSystem {
   constructor(state, bus) {
@@ -175,6 +176,14 @@ export class EventSystem {
     }
     const choiceHeadline = typeof choice.headline === 'function' ? choice.headline(s, evt._ctx) : choice.headline;
 
+    // Build a concrete, player-facing summary of the immediate effects.
+    // Authors can attach `summaryOverride` on choices that use the imperative
+    // apply() hook (where the ops list alone would be misleading).
+    const autoSummary = summarizeEffects(choice.effects, evt._ctx, s.countries);
+    const effectsSummary = choice.summaryOverride
+      ? [choice.summaryOverride, autoSummary].filter(Boolean).join(' · ')
+      : autoSummary;
+
     // Advisor conflicts are dynamic events — not worth logging as player
     // "decisions" in the win-screen history. Only pool events get recorded.
     const isPoolEvent = !evt._advisorConflict;
@@ -191,6 +200,7 @@ export class EventSystem {
         choiceKey: choice.key,
         choiceLabel: choice.label,
         choiceHeadline,
+        effectsSummary,
         tone: choice.tone ?? 'neutral',
         echoHeadline: null,
       });
@@ -208,6 +218,15 @@ export class EventSystem {
     }
 
     this.bus.emit(EVT.EVENT_FIRED, { event: evt, headline: choiceHeadline, tone: choice.tone ?? 'neutral' });
+    // Separate signal for UI layers that want the concrete "what just changed"
+    // rather than the flavor headline. Main wires this to a toast.
+    this.bus.emit(EVT.DECISION_RESOLVED, {
+      eventId: evt.id,
+      title: evt.title,
+      choiceLabel: choice.label,
+      effectsSummary,
+      tone: choice.tone ?? 'neutral',
+    });
   }
 }
 

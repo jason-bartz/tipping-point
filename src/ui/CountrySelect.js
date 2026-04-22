@@ -8,9 +8,11 @@
 import { COUNTRIES } from '../data/countries.js';
 import { ACTIVITIES } from '../data/activities.js';
 import { COUNTRY_PROFILES, STARTER_ORDER, DIFFICULTY_LABEL } from '../data/profiles.js';
+import { BALANCE } from '../config/balance.js';
 import { waveFlag, isBlocFlag } from '../data/flags.js';
-import { hasSave, readSaveMeta, clearSave } from '../save/saveLoad.js';
+import { hasSave, readSaveMeta, clearSave, listSlots } from '../save/saveLoad.js';
 import { installModalA11y } from './modal-a11y.js';
+import { showSaves } from './SavesModal.js';
 
 const STAGE_INTRO = 'intro';
 const STAGE_PICK  = 'pick';
@@ -19,7 +21,7 @@ const ASSET_BASE = import.meta.env?.BASE_URL ?? '/';
 const WALLPAPER_URL = `${ASSET_BASE}title-wallpaper.svg`;
 const LOGO_URL = `${ASSET_BASE}tipping-point-logo.svg`;
 
-export function renderCountrySelect({ onStart, onResume } = {}) {
+export function renderCountrySelect({ onStart, onResume, onLoadSlot } = {}) {
   const root = document.getElementById('title-root');
   if (!root) return;
 
@@ -93,7 +95,7 @@ export function renderCountrySelect({ onStart, onResume } = {}) {
       const p = COUNTRY_PROFILES[id];
       if (!c || !p) return '';
       return compactCardHTML(c, p);
-    }).join('');
+    }).join('') + placeholderCardHTML();
 
     root.innerHTML = `
       <div class="pick-head">
@@ -109,7 +111,8 @@ export function renderCountrySelect({ onStart, onResume } = {}) {
       render();
     });
 
-    root.querySelectorAll('.starter').forEach(el => {
+    // Skip the placeholder — no data-id, no click target.
+    root.querySelectorAll('.starter[data-id]').forEach(el => {
       const id = el.dataset.id;
       const open = () => openDetailModal(id);
       el.addEventListener('click', open);
@@ -122,6 +125,22 @@ export function renderCountrySelect({ onStart, onResume } = {}) {
     });
 
     renderResumeBanner(root.querySelector('#resume-slot'));
+  }
+
+  function placeholderCardHTML() {
+    return `
+      <div class="starter placeholder" aria-label="More starting countries coming soon">
+        <div class="starter-head">
+          <div class="starter-title">
+            <div class="starter-flag-stub" aria-hidden="true">+</div>
+            <div>
+              <h3>More Soon</h3>
+              <div class="starter-sub">Starting Countries</div>
+            </div>
+          </div>
+        </div>
+        <div class="starter-oneline">Don't see your home? New starting countries are on the way — stay tuned.</div>
+      </div>`;
   }
 
   function compactCardHTML(c, p) {
@@ -195,7 +214,7 @@ export function renderCountrySelect({ onStart, onResume } = {}) {
           </div>
           <div class="starter-meta">
             <span class="chip" title="Economic profile">${c.infra}</span>
-            <span class="chip" title="Starting political will (0-100)">Will ${c.politicalWill}</span>
+            <span class="chip" title="Starting political will (0-100), includes +${BALANCE.homePoliticalWillBonus} home-country bonus">Will ${Math.min(100, c.politicalWill + BALANCE.homePoliticalWillBonus)}</span>
             <span class="chip" title="Baseline annual emissions">${c.baseEmissionsGtCO2.toFixed(1)} Gt/yr</span>
             ${starterNames.map(n => `<span class="chip chip-starter" title="Pre-researched at start">${n}</span>`).join('')}
           </div>
@@ -228,25 +247,54 @@ export function renderCountrySelect({ onStart, onResume } = {}) {
 
   function renderResumeBanner(slot) {
     if (!slot) return;
-    if (!hasSave()) return;
-    const meta = readSaveMeta();
-    if (!meta) return;
-    const p = COUNTRY_PROFILES[meta.homeCountryId];
+    const hasAuto = hasSave();
+    const allSlots = listSlots();
+    const manualWithData = allSlots.filter(s => s.id !== 'auto' && s.meta);
+    const hasAnySave = hasAuto || manualWithData.length > 0;
+    if (!hasAnySave) return;
+
+    const meta = hasAuto ? readSaveMeta() : manualWithData[0]?.meta;
+    const p = meta ? COUNTRY_PROFILES[meta.homeCountryId] : null;
+
+    const showMoreBtn = manualWithData.length > 0 || hasAuto;
+
     const banner = document.createElement('div');
     banner.id = 'resume-banner';
     banner.className = 'resume-banner';
-    banner.innerHTML = `<div class="resume-info">
-        <b>Resume your game</b> — ${p?.title ?? meta.homeCountryId}, Q${meta.quarter} ${meta.year} · ${meta.co2ppm.toFixed(1)} ppm · +${meta.tempAnomalyC.toFixed(2)}°C
-      </div>
-      <div class="resume-btns">
-        <button class="resume-discard" type="button">Start over</button>
-        <button class="resume-play" type="button">Resume</button>
-      </div>`;
+    if (meta) {
+      banner.innerHTML = `<div class="resume-info">
+          <b>${hasAuto ? 'Resume your game' : 'Saved game'}</b> — ${p?.title ?? meta.homeCountryId}, Q${meta.quarter} ${meta.year} · ${meta.co2ppm.toFixed(1)} ppm · +${meta.tempAnomalyC.toFixed(2)}°C
+        </div>
+        <div class="resume-btns">
+          ${showMoreBtn ? `<button class="resume-more" type="button">All saves…</button>` : ''}
+          ${hasAuto ? `<button class="resume-discard" type="button">Start over</button>` : ''}
+          <button class="resume-play" type="button">Resume</button>
+        </div>`;
+    } else {
+      banner.innerHTML = `<div class="resume-info">
+          <b>Saved games</b> in ${manualWithData.length} slot${manualWithData.length === 1 ? '' : 's'}.
+        </div>
+        <div class="resume-btns">
+          <button class="resume-more" type="button">Open saves…</button>
+        </div>`;
+    }
     slot.appendChild(banner);
-    banner.querySelector('.resume-play').addEventListener('click', () => onResume?.());
-    banner.querySelector('.resume-discard').addEventListener('click', () => {
+
+    banner.querySelector('.resume-play')?.addEventListener('click', () => {
+      if (hasAuto) onResume?.();
+      else if (manualWithData[0]) onLoadSlot?.(manualWithData[0].id);
+    });
+    banner.querySelector('.resume-discard')?.addEventListener('click', () => {
       clearSave();
       banner.remove();
+      // Re-render banner so manual slots still surface.
+      renderResumeBanner(slot);
+    });
+    banner.querySelector('.resume-more')?.addEventListener('click', () => {
+      showSaves({
+        mode: 'loadOnly',
+        onLoad: (slotId) => { onLoadSlot?.(slotId); },
+      });
     });
   }
 
