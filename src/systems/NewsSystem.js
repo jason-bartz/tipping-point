@@ -20,8 +20,23 @@ export class NewsSystem {
     bus.on(EVT.RESEARCH_STARTED, (p) => this.push(`${this._homeName()} opens a ${p.activity.name} research program.`, 'info'));
     bus.on(EVT.RESEARCH_DONE, (p) => this._onResearchDone(p));
     bus.on(EVT.NET_ZERO, (p) => this._onNetZero(p));
-    bus.on(EVT.EVENT_FIRED, (p) => this.push(p.headline, p.tone));
+    bus.on(EVT.EVENT_FIRED, (p) => this._onEventFired(p));
     bus.on(EVT.DEPLOYED, (p) => this._onDeployed(p));
+  }
+
+  // Turn major events into "BREAKING:" headlines. The ticker's LIVE label
+  // flashes red when a breaking item is in view, so even a glancing read
+  // signals "this mattered." Criteria: tipping-point tier (weight ≤ 1, bad
+  // tone) or any interactive decision. Everything else is a normal headline.
+  _onEventFired(p) {
+    const evt = p?.event || {};
+    const isBigBad = p?.tone === 'bad' && (evt.weight ?? 99) <= 1;
+    const isDecision = !!evt.interactive && Array.isArray(evt.choices);
+    if (isBigBad || isDecision) {
+      this.push(`BREAKING: ${p.headline}`, 'breaking');
+    } else {
+      this.push(p.headline, p.tone);
+    }
   }
 
   _homeName() {
@@ -74,7 +89,7 @@ export class NewsSystem {
   _onNetZero(p) {
     if (!this._firstNetZeroHit) {
       this._firstNetZeroHit = true;
-      this.push(`${p.country.name} becomes the first nation to reach Net Zero. A working blueprint exists.`, 'good');
+      this.push(`BREAKING: ${p.country.name} becomes the first nation to reach Net Zero. A working blueprint exists.`, 'breaking');
     } else {
       this.push(`${p.country.name} reaches Net Zero. Neighbors take notes.`, 'good');
     }

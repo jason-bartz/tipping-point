@@ -17,6 +17,7 @@ import {
 } from '../model/Adoption.js';
 import { projectDeploy, recordDeploy, pairCapReached } from '../model/DeployEconomy.js';
 import { gate as politicalGate } from '../model/PoliticalGate.js';
+import { incumbentMultipliers } from '../model/Government.js';
 import { previewAdvisorDeployCost, commitAdvisorDeployCost } from './AdvisorSystem.js';
 
 export class AdoptionSystem {
@@ -40,21 +41,30 @@ export class AdoptionSystem {
       for (const donor of countries) {
         if ((donor.adoption[branch] ?? 0) <= 0) continue;
         const donorMod = donor.isHome ? this.mod : null;
+        // Incumbent tag multiplier — green governments export their policies
+        // faster, deniers drag their feet. Sits on top of the home-country
+        // spreadMult, so a green home multiplies both.
+        const incMult = incumbentMultipliers(donor).spreadMult ?? 1;
         for (const nId of donor.neighbors ?? []) {
           const recipient = this.state.countries[nId];
           if (!recipient) continue;
           const gap = donor.adoption[branch] - (recipient.adoption[branch] ?? 0);
           if (gap <= 0) continue;
-          const fraction = spreadFraction(recipient, branch, donorMod);
+          const fraction = spreadFraction(recipient, branch, donorMod) * incMult;
           recipient.adoption[branch] = Math.min(1, (recipient.adoption[branch] ?? 0) + gap * fraction);
         }
       }
     }
 
-    // Will drift + net-zero detection + stress decay.
+    // Will drift + net-zero detection + stress decay. Incumbent tag adds a
+    // small standing bonus/malus — a green government props will up a couple
+    // of points above the drift floor; a denier actively erodes it.
     const w = this.state.world;
     for (const c of countries) {
-      c.politicalWill = clampWill((c.politicalWill ?? 50) + willDeltaFor(c, w));
+      const willBonus = incumbentMultipliers(c).willBonus ?? 0;
+      // Applied as a gentle per-tick nudge (÷ 10) so the standing effect
+      // compounds over many ticks instead of slamming in at once.
+      c.politicalWill = clampWill((c.politicalWill ?? 50) + willDeltaFor(c, w) + willBonus * 0.1);
       if (!c.netZero && meetsNetZero(c)) {
         c.netZero = true;
         w.climatePoints += BALANCE.milestoneBonusCP;

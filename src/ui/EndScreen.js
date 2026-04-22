@@ -13,6 +13,52 @@ function escapeHTML(s) {
     .replace(/"/g, '&quot;');
 }
 
+// Sprinkle 80-odd pixel confetti squares down the end screen for a win.
+// Each gets a random horizontal start, fall duration, rotation, and color;
+// CSS keyframe `gpConfettiFall` does the animation. The whole layer removes
+// itself on animationend of the last particle so we don't leak DOM.
+const CONFETTI_COLORS = ['#16a34a', '#facc15', '#0ea5e9', '#f472b6', '#f97316', '#a78bfa'];
+function dropConfetti(root, count = 80) {
+  if (!root) return;
+  const reduced = typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return;
+  const layer = document.createElement('div');
+  layer.className = 'gp-confetti-layer';
+  layer.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('span');
+    p.className = 'gp-confetti';
+    const left = Math.random() * 100;
+    const dur = 2.4 + Math.random() * 2.6;
+    const delay = Math.random() * 0.5;
+    const rot = Math.random() * 540 - 270;
+    const size = 6 + Math.round(Math.random() * 6);
+    const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    p.style.cssText =
+      `left:${left}%;width:${size}px;height:${Math.round(size * 0.5)}px;` +
+      `background:${color};animation-duration:${dur.toFixed(2)}s;` +
+      `animation-delay:${delay.toFixed(2)}s;--r:${rot}deg`;
+    layer.appendChild(p);
+  }
+  root.appendChild(layer);
+  setTimeout(() => layer.remove(), 6000);
+}
+
+// Build a shareable replay link. `seed` + `country` are enough to replay the
+// same starting conditions; the RNG is seeded from it in createState().
+function buildReplayURL(state) {
+  try {
+    const base = new URL(window.location.href);
+    base.search = '';
+    const p = new URLSearchParams();
+    p.set('country', state.meta.homeCountryId);
+    if (state.meta.seed != null) p.set('seed', String(state.meta.seed >>> 0));
+    base.search = p.toString();
+    return base.toString();
+  } catch { return null; }
+}
+
 // Render the player's decision log as an attributed timeline. Only shown on
 // a win — this is the "what you chose that got you here" recap. Each row
 // includes the immediate in-universe reaction and (if fired) the delayed
@@ -71,6 +117,7 @@ export function showEndScreen(state, payload, won, { onAgain } = {}) {
       <button class="end-achievements" type="button">
         Achievements${readNew().size ? ` <span class="end-ach-badge">${readNew().size} new</span>` : ''}
       </button>
+      <button class="end-share" type="button" title="Copy a shareable link that replays this exact seed">Copy replay link</button>
       <button class="again">Play Again</button>
     </div>`;
 
@@ -78,6 +125,33 @@ export function showEndScreen(state, payload, won, { onAgain } = {}) {
   root.querySelector('.end-achievements')?.addEventListener('click', () => {
     showAchievements({ state });
   });
+
+  const shareBtn = root.querySelector('.end-share');
+  shareBtn?.addEventListener('click', async () => {
+    const url = buildReplayURL(state);
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      const prev = shareBtn.textContent;
+      shareBtn.textContent = 'Copied!';
+      shareBtn.classList.add('end-share-copied');
+      setTimeout(() => {
+        shareBtn.textContent = prev;
+        shareBtn.classList.remove('end-share-copied');
+      }, 1800);
+    } catch {
+      // Clipboard blocked (e.g. insecure origin) — fall back to a prompt.
+      try { window.prompt('Copy this replay link:', url); } catch { /* ignore */ }
+    }
+  });
+
   document.getElementById('game').classList.remove('active');
   document.getElementById('end-screen').classList.add('active');
+
+  // Ceremony on wins. The grade reveals on a small delay so the stats land
+  // first; confetti rains; S/A get an extra beat.
+  if (won) {
+    setTimeout(() => root.classList.add('end-reveal'), 60);
+    setTimeout(() => dropConfetti(root, payload.perfect ? 110 : 70), 180);
+  }
 }

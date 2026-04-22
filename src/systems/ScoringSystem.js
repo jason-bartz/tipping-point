@@ -63,6 +63,24 @@ export class ScoringSystem {
       if (h.length > cap) h.splice(0, h.length - cap);
     }
 
+    // 1.5°C breach milestone — fires exactly once, the first time the world
+    // crosses the Paris target. Wakes up political will (the threshold was
+    // always rhetorical; crossing it makes it real) and adds a small stress
+    // spike. Narrative beat lands on the ticker and in the dispatch log via
+    // the standard EVENT_FIRED payload.
+    if (!s.meta.breached1_5 && (w.tempAnomalyC ?? 0) >= 1.5) {
+      s.meta.breached1_5 = true;
+      w.societalStress = (w.societalStress ?? 0) + 3;
+      for (const c of Object.values(s.countries)) {
+        c.politicalWill = Math.min(100, (c.politicalWill ?? 50) + 4);
+      }
+      this.b.emit(EVT.EVENT_FIRED, {
+        event: { id: 'breach_1_5', title: '1.5°C Breached' },
+        headline: 'The world crosses +1.5°C for the first time. The Paris target, as a target, is gone. Politicians stop using the past tense.',
+        tone: 'bad',
+      });
+    }
+
     const outcome = evaluateOutcome(s, this.peakTemp);
     if (!outcome) return;
     if (outcome.status === 'lost')      this._lose(outcome.reason);

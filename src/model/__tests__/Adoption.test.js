@@ -81,9 +81,9 @@ describe('will decay + drift', () => {
     expect(loud).toBeLessThan(quiet);
   });
 
-  it('clampWill pins to [8, 100]', () => {
-    expect(clampWill(-5)).toBe(8);
-    expect(clampWill(200)).toBe(100);
+  it('clampWill pins to BALANCE min/max political will', () => {
+    expect(clampWill(-5)).toBe(BALANCE.minPoliticalWill);
+    expect(clampWill(200)).toBe(BALANCE.maxPoliticalWill);
     expect(clampWill(55)).toBe(55);
   });
 });

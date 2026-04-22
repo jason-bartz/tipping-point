@@ -58,6 +58,11 @@ export const EVT = {
   // immediately (toast, receipt, etc.) — separate from the flavor headline
   // that goes to the news ticker.
   DECISION_RESOLVED: 'decisionResolved',
+  // Fired when a pending interactive event times out without a choice.
+  // Carries the same shape as DECISION_RESOLVED plus `expired: true` so UI
+  // layers can distinguish "you chose X" from "you let it run out". The
+  // penalty has already been applied to state by the time this fires.
+  DECISION_EXPIRED: 'decisionExpired',
   // Fired when a new dispatch lands in the persistent log. Panels listen so
   // they can badge the unread count and animate the new row. Payload is the
   // dispatch record (see model/Dispatches.js).
@@ -65,6 +70,15 @@ export const EVT = {
   // Fired when the unread set changes (new dispatch, mark-read, mark-all).
   // Tab badge listens to this so it can update without re-reading state.
   DISPATCH_UNREAD_CHANGED: 'dispatchUnreadChanged',
+  // Fired when the decision/event modal opens or closes. Main.js uses this to
+  // dim the world and duck the music so decisions feel weighty. Payload:
+  // `{ open: boolean, eventId?: string }`.
+  EVENT_MODAL_STATE: 'eventModalState',
+  // Forestry / government pipeline. Fired when a country's carbonLiability
+  // crosses the cap and the shadow promotes to incumbent. Payload: the
+  // succession summary from model/Government.succeed() — outgoing, incoming,
+  // swing, countryId, countryName. UI listens to toast + dispatch it.
+  GOVERNMENT_FELL: 'governmentFell',
   WON: 'won',
   LOST: 'lost',
 };

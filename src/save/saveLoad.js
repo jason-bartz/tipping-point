@@ -2,17 +2,80 @@
 // to hand-serialize are the RNG instance (reconstructed from seed) and the
 // Set of researched activities (converted to an array).
 //
-// Save format versioning: if we ever change the state shape, bump SCHEMA and
-// teach deserialize() how to migrate older blobs.
+// ─── Save schema versioning & migrations ──────────────────────────────────
+// Every blob on disk carries its own `schema` number. `SCHEMA` below is the
+// current (writer) version. `MIGRATIONS[n]` takes a blob at schema=n and
+// returns one at schema=n+1. deserialize() chains migrations forward until
+// the blob's schema matches the current writer, then runs the shared
+// back-fill pass.
+//
+// Rules for the next shape change:
+//   1. Bump SCHEMA (e.g. 1 → 2).
+//   2. Add MIGRATIONS[1] (a pure function: v1 blob in, v2 blob out).
+//   3. Add a fixture under __tests__/fixtures/ so the migration test can
+//      assert the path doesn't silently drift.
+//   4. Keep forward-compat back-fills (the `// Forward-compat:` block below)
+//      ONLY for non-breaking additions — new optional fields. Anything that
+//      removes, renames, or changes the type of a field MUST go through a
+//      numbered migration so we can tell old blobs apart from new.
+// A blob whose schema is higher than the writer is rejected (we can't know
+// how a future version shaped it). A blob whose schema is lower gets
+// migrated forward.
 
 import { Rng } from '../core/Random.js';
-import { COUNTRIES } from '../data/countries.js';
+import { COUNTRIES, FOREST_BASELINE } from '../data/countries.js';
 import { ADVISOR_IDS } from '../data/advisors.js';
 import { resolveAdvisor } from '../model/Advisors.js';
+import { createGovernment } from '../model/Government.js';
 import { captureError } from '../telemetry/sentry.js';
 
 const STORAGE_KEY = 'tipping-point.save.v1';
-const SCHEMA = 1;
+const SCHEMA = 2;
+
+// Migration registry. Each entry takes a blob at schema N and returns one at
+// schema N+1. deserialize() chains them until the blob reaches the current
+// writer version.
+const MIGRATIONS = {
+  // v1 → v2: per-country government + forestry. v1 saves have no government
+  // object and no forestHealth/forestBaseline. We rebuild government from
+  // scratch using the country's live politicalWill + infra (same path
+  // createGovernment() takes at new-game init) and seed forestHealth to its
+  // baseline — treating the save as "forests intact at resume" rather than
+  // guessing historical burn. The rng in the save already has its stream
+  // position; we use it to draw politician tags so the migration is
+  // deterministic per-save.
+  1: (blob) => {
+    const state = blob.state;
+    // The rng instance isn't rebuilt yet at migration time — saveLoad rebuilds
+    // it after migrate(). Roll a temporary rng off the seed to generate
+    // governments; the real state.meta.rng's stream position is preserved
+    // downstream, so gameplay rolls don't shift.
+    const rng = new Rng((state?.meta?.seed ?? 0) >>> 0);
+    for (const c of Object.values(state?.countries ?? {})) {
+      if (c.forestBaseline == null) c.forestBaseline = FOREST_BASELINE[c.id] ?? 0.3;
+      if (c.forestHealth   == null) c.forestHealth   = c.forestBaseline;
+      if (!c.government) c.government = createGovernment(c, rng);
+    }
+    return { ...blob, schema: 2 };
+  },
+};
+
+function migrate(blob) {
+  let cur = blob;
+  while (cur && cur.schema < SCHEMA) {
+    const step = MIGRATIONS[cur.schema];
+    if (!step) {
+      console.warn(`[save] no migration from schema ${cur.schema} → ${cur.schema + 1}; dropping save`);
+      return null;
+    }
+    cur = step(cur);
+    if (!cur || cur.schema <= blob.schema) {
+      console.warn('[save] migration did not advance schema; dropping save');
+      return null;
+    }
+  }
+  return cur;
+}
 
 // Named slot keys. The `auto` slot reuses the legacy STORAGE_KEY so saves
 // written before slots existed still resolve. Manual slots a/b/c are
@@ -35,23 +98,39 @@ export const SLOT_LABELS = {
 export const MANUAL_SLOT_IDS = ['a', 'b', 'c'];
 export const ALL_SLOT_IDS = ['auto', 'a', 'b', 'c'];
 
-// Shallow-serialize Sets and drop transient fields (rng instance, nothing
-// else right now). Everything else round-trips through JSON natively.
+// Shallow-serialize Sets and drop transient fields. The RNG instance itself
+// can't be JSON'd, so we snapshot its stream position into meta.rngState and
+// rebuild the Rng on load — this preserves exact determinism across save /
+// load, so a replay from a loaded save produces the same random rolls as an
+// uninterrupted run.
 export function serialize(state) {
+  const rngState = typeof state?.meta?.rng?.snapshot === 'function'
+    ? state.meta.rng.snapshot()
+    : undefined;
   const clone = JSON.parse(JSON.stringify({
     ...state,
-    meta: { ...state.meta, rng: undefined },
+    meta: { ...state.meta, rng: undefined, rngState },
     world: { ...state.world, researched: [...state.world.researched] },
   }));
   return { schema: SCHEMA, savedAt: Date.now(), state: clone };
 }
 
 export function deserialize(blob) {
-  if (!blob || blob.schema !== SCHEMA) return null;
+  if (!blob || typeof blob.schema !== 'number') return null;
+  // Future schemas aren't decodable — the writer may have shaped the blob in
+  // ways we can't predict. Older schemas get migrated forward.
+  if (blob.schema > SCHEMA) return null;
+  if (blob.schema < SCHEMA) {
+    blob = migrate(blob);
+    if (!blob) return null;
+  }
   const s = blob.state;
-  // Rebuild non-JSON members.
+  // Rebuild non-JSON members. If the blob carries a snapshotted stream
+  // position (rngState), resume from it — otherwise fall back to reseeding
+  // from the seed, which matches pre-stream-position save behavior.
   s.world.researched = new Set(s.world.researched || []);
-  s.meta.rng = new Rng(s.meta.seed);
+  s.meta.rng = new Rng(s.meta.seed, s.meta.rngState);
+  delete s.meta.rngState;
   // Forward-compat: fields added after this save was written get sane defaults
   // instead of `undefined`. Schema-minor migrations live here so we can keep
   // old saves readable without bumping SCHEMA.
@@ -66,12 +145,22 @@ export function deserialize(blob) {
   for (const c of Object.values(s.countries || {})) {
     if (c.populationM == null)      c.populationM = byId.get(c.id)?.populationM ?? 0;
     if (c.populationDeltaM == null) c.populationDeltaM = 0;
-    if (c.baseGrowthPerYear == null)     c.baseGrowthPerYear = byId.get(c.id)?.baseGrowthPerYear ?? 0;
-    if (c.climateVulnerability == null)  c.climateVulnerability = byId.get(c.id)?.climateVulnerability ?? 1;
+    // Pre-split saves only had `baseGrowthPerYear`. Back-fill the new split
+    // fields from the live data file; drop the legacy field so nothing reads
+    // it by accident. Pre-v0.4 saves get the current canonical numbers.
+    const def = byId.get(c.id);
+    if (c.birthRatePerYear == null)  c.birthRatePerYear = def?.birthRatePerYear ?? 0;
+    if (c.deathRatePerYear == null)  c.deathRatePerYear = def?.deathRatePerYear ?? 0;
+    if (c.climateVulnerability == null)  c.climateVulnerability = def?.climateVulnerability ?? 1;
+    // Event-driven birth/death modifiers decay each tick — safest restore
+    // is zero so a resumed save doesn't retain stale buffs from a dropped
+    // activeEvent.
+    if (c.birthRateModifier == null) c.birthRateModifier = 0;
+    if (c.deathRateModifier == null) c.deathRateModifier = 0;
+    if (c.baseGrowthPerYear != null) delete c.baseGrowthPerYear;
     // Map positions were recalibrated against the pixel art. Always pull
     // the latest from the data file — old saves predate the calibration,
     // and we want dots to land on their countries regardless of save age.
-    const def = byId.get(c.id);
     if (def?.mapX != null) c.mapX = def.mapX;
     if (def?.mapY != null) c.mapY = def.mapY;
   }
@@ -92,6 +181,19 @@ export function deserialize(blob) {
   // leave the game stuck in auto-pause on resume.
   s.meta.dispatches ||= [];
   s.meta.autoPausedForDecision = false;
+  // Dispatch id counter was module-scoped pre-fix; older saves won't have
+  // it. Recover by scanning the dispatches array for the highest suffix so
+  // the next id emitted after resume doesn't collide with an existing one.
+  if (s.meta.dispatchIdCounter == null) {
+    let max = 0;
+    for (const d of s.meta.dispatches) {
+      const m = /^d_\d+_([0-9a-z]+)$/.exec(d.id ?? '');
+      if (!m) continue;
+      const n = parseInt(m[1], 36);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    s.meta.dispatchIdCounter = max;
+  }
   // activeEvents is dropped on load (see above), so any dispatch that was
   // still "needs action" is now orphaned — its eventId no longer resolves
   // to anything. Mark it answered so the UI doesn't show a Decide button
@@ -100,6 +202,8 @@ export function deserialize(blob) {
     for (const d of s.meta.dispatches) {
       if (d.needsAction) {
         d.needsAction = false;
+        d.expired = true;
+        d.tone = 'bad';
         d.read = true;
         d.detail = d.detail || 'Decision expired on resume.';
       }
@@ -184,7 +288,10 @@ export function readSaveMeta() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const blob = JSON.parse(raw);
-    if (blob.schema !== SCHEMA) return null;
+    // Metadata read — accept any schema <= current so we can show resume
+    // banners for not-yet-migrated saves. The actual load path runs
+    // migrate() and rebuilds; this is just the peek.
+    if (typeof blob.schema !== 'number' || blob.schema > SCHEMA) return null;
     const s = blob.state;
     return {
       savedAt: blob.savedAt,
@@ -275,7 +382,10 @@ export function readSlotMeta(slotId) {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const blob = JSON.parse(raw);
-    if (blob.schema !== SCHEMA) return null;
+    // Metadata read — accept any schema <= current so we can show resume
+    // banners for not-yet-migrated saves. The actual load path runs
+    // migrate() and rebuilds; this is just the peek.
+    if (typeof blob.schema !== 'number' || blob.schema > SCHEMA) return null;
     const s = blob.state;
     return {
       slotId,

@@ -1,33 +1,16 @@
-// Dispatches panel. Persistent log of every meaningful beat — events, news
-// ticker items, research completions, advisor whispers, milestones, and the
-// big one: pending interactive decisions, which land here as "needs action"
-// cards instead of as auto-popping modals.
+// Decisions panel. Interactive-event log — only entries where the player
+// was asked to choose something. Answered decisions stay on the list so the
+// player can read what they chose; pending ones pulse quietly at the top.
 //
-// The panel owns its own scroll region, filter chip strip, and per-card
-// expand/collapse. Rendering is cheap: we rebuild the list DOM on every
-// relevant change because the dispatches array is capped at 250. A signature
-// check skips the rebuild when nothing visible has changed — important when
-// ticks fire DISPATCH_UNREAD_CHANGED from read-marking alone.
+// Event / research / advisor / milestone dispatches still hit the log via
+// logDispatch so the state keeps a full history, but they don't surface
+// here. Advisor comments are attributed per-seat in the Council tab.
 
 import { EVT } from '../core/EventBus.js';
 import {
-  DISPATCH_FILTERS,
-  filteredDispatches,
   markRead,
-  markAllRead,
-  unreadCount,
+  pendingDecisionCount,
 } from '../model/Dispatches.js';
-
-const KIND_LABELS = {
-  decision:  'DECISION',
-  event:     'EVENT',
-  news:      'NEWS',
-  research:  'RESEARCH',
-  milestone: 'MILESTONE',
-  advisor:   'ADVISOR',
-  deploy:    'DEPLOY',
-  system:    'SYSTEM',
-};
 
 export class DispatchesPanel {
   constructor(root, state, bus, { onOpenDecision } = {}) {
@@ -35,7 +18,6 @@ export class DispatchesPanel {
     this.state = state;
     this.bus = bus;
     this.onOpenDecision = onOpenDecision || (() => {});
-    this.filter = 'all';
     this.expanded = new Set();   // ids of expanded cards
     this._lastSig = '';
 
@@ -60,72 +42,42 @@ export class DispatchesPanel {
   }
 
   _render() {
-    const total = this.state.meta.dispatches?.length ?? 0;
-    const unread = unreadCount(this.state);
     this.root.innerHTML = `
-      <div class="panel-title dispatches-title">
-        <span>Dispatches</span>
-        <span class="dispatches-count" title="${unread} unread of ${total} total">${unread}/${total}</span>
-        <button class="dispatches-mark-all" type="button" title="Mark every non-pending dispatch as read"${unread === 0 ? ' disabled' : ''}>Mark all read</button>
-      </div>
-      <div class="dispatch-filters" role="tablist" aria-label="Filter dispatches">
-        ${DISPATCH_FILTERS.map(f => `
-          <button class="df-chip ${f.id === this.filter ? 'active' : ''}" type="button"
-                  data-filter="${f.id}" role="tab"
-                  aria-selected="${f.id === this.filter ? 'true' : 'false'}">
-            ${f.label}
-          </button>`).join('')}
-      </div>
       <div class="dispatch-list right-scroll" role="list"></div>`;
 
     this.listEl = this.root.querySelector('.dispatch-list');
-
-    for (const btn of this.root.querySelectorAll('.df-chip')) {
-      btn.addEventListener('click', () => {
-        if (this.filter === btn.dataset.filter) return;
-        this.filter = btn.dataset.filter;
-        for (const b of this.root.querySelectorAll('.df-chip')) {
-          const on = b.dataset.filter === this.filter;
-          b.classList.toggle('active', on);
-          b.setAttribute('aria-selected', on ? 'true' : 'false');
-        }
-        this._lastSig = ''; // force rebuild
-        this._renderList();
-      });
-    }
-
-    this.root.querySelector('.dispatches-mark-all')?.addEventListener('click', () => {
-      if (markAllRead(this.state, this.bus) > 0) this._renderList();
-    });
 
     this._lastSig = '';
     this._renderList();
   }
 
+  _decisions() {
+    const arr = this.state.meta.dispatches ?? [];
+    return arr.filter(d => d.kind === 'decision');
+  }
+
   _sig() {
-    const arr = filteredDispatches(this.state, this.filter);
-    // Lightweight: length + first id + first read-state flags. When any
-    // dispatch lands or flips, the head of the array changes → sig changes.
+    const arr = this._decisions();
     const head = arr[0];
-    const unread = unreadCount(this.state);
-    return `${arr.length}|${head?.id || ''}|${head?.read ? 1 : 0}|${head?.needsAction ? 1 : 0}|${unread}|${this.filter}|${[...this.expanded].join(',')}`;
+    const pending = pendingDecisionCount(this.state);
+    // Include the current tick in the sig so the countdown chip on each
+    // pending card re-renders every tick (text changes from "3q" → "2q").
+    return `${arr.length}|${head?.id || ''}|${head?.read ? 1 : 0}|${head?.needsAction ? 1 : 0}|${pending}|${this.state.meta.tick}|${[...this.expanded].join(',')}`;
   }
 
   _renderList() {
     if (!this.listEl) return;
     const sig = this._sig();
     if (sig === this._lastSig) {
-      // Still update the count chip in the header so it ticks even when the
-      // list body is unchanged (filter-scoped count).
       this._updateHeaderCount();
       return;
     }
     this._lastSig = sig;
     this._updateHeaderCount();
 
-    const arr = filteredDispatches(this.state, this.filter);
+    const arr = this._decisions();
     if (!arr.length) {
-      this.listEl.innerHTML = `<div class="dispatch-empty">No dispatches here yet. Play on — events, decisions, and news will land in this log.</div>`;
+      this.listEl.innerHTML = `<div class="dispatch-empty">No decisions to make right now. When the council needs your call, it'll land here.</div>`;
       return;
     }
 
@@ -153,15 +105,12 @@ export class DispatchesPanel {
   }
 
   _updateHeaderCount() {
-    const total = this.state.meta.dispatches?.length ?? 0;
-    const unread = unreadCount(this.state);
+    const pending = pendingDecisionCount(this.state);
     const countEl = this.root.querySelector('.dispatches-count');
     if (countEl) {
-      countEl.textContent = `${unread}/${total}`;
-      countEl.title = `${unread} unread of ${total} total`;
+      countEl.textContent = pending ? `${pending} pending` : '';
+      countEl.title = `${pending} awaiting your call`;
     }
-    const mark = this.root.querySelector('.dispatches-mark-all');
-    if (mark) mark.disabled = unread === 0;
   }
 
   _toggleExpanded(id) {
@@ -177,27 +126,44 @@ export class DispatchesPanel {
   }
 
   _cardHTML(d) {
-    const kindLabel = KIND_LABELS[d.kind] || d.kind.toUpperCase();
     const isExpanded = this.expanded.has(d.id);
     const cls = [
       'dispatch-card',
       `tone-${d.tone}`,
-      `kind-${d.kind}`,
+      'kind-decision',
       d.read ? 'read' : 'unread',
-      d.needsAction ? 'needs-action' : '',
+      d.needsAction ? 'needs-action' : (d.expired ? 'expired' : 'answered'),
       isExpanded ? 'expanded' : '',
     ].filter(Boolean).join(' ');
     const body = d.body ? `<div class="dispatch-body">${d.body}</div>` : '';
     const detail = d.detail ? `<div class="dispatch-detail">${d.detail}</div>` : '';
     const actionLabel = d.needsAction ? 'Decide' : (isExpanded ? 'Collapse' : 'Expand');
     const actionCls   = d.needsAction ? 'dispatch-action action-decide' : 'dispatch-action';
+    const pendingDot = d.needsAction ? `<span class="dispatch-pending-dot" aria-label="Awaiting decision"></span>` : '';
+    // Countdown chip on pending decisions. Turns urgent within 2 quarters
+    // of expiry, and disappears when the decision is answered or expired.
+    let timerChip = '';
+    if (d.needsAction && d.expiresAtTick != null) {
+      const remaining = Math.max(0, d.expiresAtTick - this.state.meta.tick);
+      const urgent = remaining <= 2;
+      const label = remaining === 1 ? '1q left' : `${remaining}q left`;
+      timerChip = `<span class="dispatch-timer ${urgent ? 'urgent' : ''}" title="Quarters until this decision expires with consequences">${label}</span>`;
+    } else if (d.expired) {
+      timerChip = `<span class="dispatch-timer expired" title="This decision ran out of time">Expired</span>`;
+    }
+    // Thematic category chip. Today only "unintended" is wired — a tag for
+    // decisions where any choice tends to produce backfire consequences, so
+    // the player can recognize the pattern before reading each echo.
+    const categoryChip = d.category === 'unintended'
+      ? `<span class="dispatch-category unintended" title="Every path here carries backfire risk. Read the echoes.">Unintended</span>`
+      : '';
     return `<div class="${cls}" data-id="${d.id}" role="listitem" tabindex="0"
                  aria-expanded="${isExpanded ? 'true' : 'false'}">
       <div class="dispatch-card-head">
-        <span class="dispatch-kind-chip kind-${d.kind}">${kindLabel}</span>
-        ${d.needsAction ? `<span class="dispatch-urgent">NEEDS ACTION</span>` : ''}
         <span class="dispatch-when">Q${d.quarter} ${d.year}</span>
-        ${!d.read ? `<span class="dispatch-unread-dot" aria-label="Unread"></span>` : ''}
+        ${timerChip}
+        ${categoryChip}
+        ${pendingDot}
       </div>
       <div class="dispatch-title">${d.title || '(untitled)'}</div>
       ${isExpanded ? body : ''}

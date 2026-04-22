@@ -71,7 +71,7 @@ export const GLOSSARY = [
   { term: 'Carbon Credit', category: 'policy',
     def: 'A tradable certificate representing one tonne of CO₂ either avoided or removed. Quality varies wildly — the majority of voluntary-market credits have been found to overstate real climate benefit.' },
   { term: 'Carbon Credits (game)', category: 'game',
-    def: 'The game’s currency (● icon in the HUD). Earned passively each quarter and as milestone bonuses; spent on research and deployment. Your home country gets a 25% discount on deployments.' },
+    def: 'The game’s currency (coin icon in the HUD). Earned passively each quarter and as milestone bonuses; spent on research and deployment. Your home country gets a 25% discount on deployments.' },
   { term: 'Carbon Dioxide (CO₂)', category: 'science',
     def: 'The main long-lived greenhouse gas driving climate change. Atmospheric concentration is above 420 ppm, with 2025 seasonal peaks around 430 ppm — up from ~280 ppm pre-industrial. Once emitted, CO₂ stays in the atmosphere for centuries to millennia.' },
   { term: 'Carbon Dioxide Removal (CDR)', category: 'capture',

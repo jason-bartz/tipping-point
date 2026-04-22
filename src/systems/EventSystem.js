@@ -22,9 +22,17 @@ export class EventSystem {
     this.advisorSystem = null; // wired after construction by main.js
     this._unsub = bus.on(EVT.TICK, () => {
       this.drainEchoes();
+      // Expire timed-out pending decisions first — they should clear out
+      // before we roll a new interactive, otherwise the player's queue can
+      // pile up with expired placeholders.
+      this.expirePending();
       // Interactive track runs first — if it fires, the passive track sits
-      // out this tick so we never stack a modal on top of a news beat.
-      if (!this.rollInteractive()) this.rollPassive();
+      // out this tick so we never stack a modal on top of a news beat. The
+      // IPCC cadence is the last preference and only fires if neither of
+      // the other two tracks took this tick.
+      if (this.rollInteractive()) return;
+      if (this.rollPassive()) return;
+      this.rollIpcc();
     });
   }
 
@@ -132,6 +140,35 @@ export class EventSystem {
     return this._fire(chosen, true);
   }
 
+  // IPCC cadence track. Every BALANCE.ipccCadenceTicks the director force-
+  // picks an IPCC-tagged event, giving the game a recognizable "report drops"
+  // rhythm. Respects the same startup grace + active-event gate; skipped
+  // silently if no ipcc events happen to be eligible (e.g. all guarded out).
+  rollIpcc() {
+    const s = this.state;
+    const rng = s.meta.rng;
+    const cadence = BALANCE.ipccCadenceTicks ?? 0;
+    if (!cadence) return false;
+    if (s.meta.tick < (BALANCE.eventStartupGraceTicks ?? 0)) return false;
+    if (s.activeEvents?.length) return false;
+    const lastTick = s.meta.lastIpccTick ?? -999;
+    if (s.meta.tick - lastTick < cadence) return false;
+
+    const eligible = EVENT_POOL.filter(e => {
+      if (!e.ipcc) return false;
+      if (e.interactive) return false;
+      if (e.guard && !e.guard(s)) return false;
+      if (e.target && !e.target(s, rng)) return false;
+      return true;
+    });
+    if (!eligible.length) return false;
+
+    const chosen = rng.weightedPick(eligible);
+    if (!chosen) return false;
+    s.meta.lastIpccTick = s.meta.tick;
+    return this._fire(chosen, false);
+  }
+
   // Shared fire path for both tracks. Resolves title/headline, pushes an
   // interactive event onto activeEvents or applies a passive event's effects
   // inline, bumps the appropriate last-fired tick, and emits EVT.EVENT_FIRED.
@@ -145,8 +182,17 @@ export class EventSystem {
     const headline = typeof chosen.headline === 'function' ? chosen.headline(s, ctx) : chosen.headline;
     const title    = typeof chosen.title    === 'function' ? chosen.title(s, ctx)    : chosen.title;
 
+    let expiresAtTick = null;
     if (chosen.interactive) {
-      const evt = { ...chosen, firedTick: s.meta.tick, title, headline, _ctx: ctx };
+      // expiresAtTick = firedTick + (per-event override or default). The
+      // event can set `timeoutTicks: Infinity` to opt out, but by default
+      // every decision has a clock — inaction has consequences. Clamp the
+      // minimum to 1 so an accidental 0 doesn't expire the event on the
+      // very next tick before the player sees it.
+      const rawTtl = chosen.timeoutTicks ?? BALANCE.decisionTimeoutTicks ?? 6;
+      const ttl = Number.isFinite(rawTtl) ? Math.max(1, rawTtl) : rawTtl;
+      expiresAtTick = Number.isFinite(ttl) ? s.meta.tick + ttl : null;
+      const evt = { ...chosen, firedTick: s.meta.tick, expiresAtTick, title, headline, _ctx: ctx };
       enrichAdvisorStances(s, evt);
       s.activeEvents.push(evt);
     } else {
@@ -157,8 +203,100 @@ export class EventSystem {
     s.meta.lastEventTick = s.meta.tick;
     if (isInteractiveTrack) s.meta.lastInteractiveTick = s.meta.tick;
 
-    this.bus.emit(EVT.EVENT_FIRED, { event: { ...chosen, title }, headline, tone: chosen.tone ?? 'neutral' });
+    // Pass expiresAtTick through the bus payload so UI layers (dispatch
+    // card, toast) can surface the countdown without peeking at activeEvents.
+    this.bus.emit(EVT.EVENT_FIRED, {
+      event: { ...chosen, title, expiresAtTick },
+      headline,
+      tone: chosen.tone ?? 'neutral',
+    });
     return true;
+  }
+
+  // Walk the active-events queue and expire any whose clock has run out.
+  // Expiration applies a penalty (author-supplied via `onExpire`, else the
+  // default from BALANCE) and emits DECISION_EXPIRED so the UI can update
+  // dispatches + toast + decisions log.
+  expirePending() {
+    const s = this.state;
+    if (!s.activeEvents?.length) return;
+    const now = s.meta.tick;
+    const kept = [];
+    const expired = [];
+    for (const evt of s.activeEvents) {
+      if (evt.interactive && evt.expiresAtTick != null && now >= evt.expiresAtTick) {
+        expired.push(evt);
+      } else {
+        kept.push(evt);
+      }
+    }
+    if (!expired.length) return;
+    s.activeEvents = kept;
+    for (const evt of expired) this._expire(evt);
+  }
+
+  _expire(evt) {
+    const s = this.state;
+
+    // Advisor-conflict events don't carry onExpire logic today; a timeout
+    // just drops the conflict and takes the default world penalty (same
+    // as any other uncommitted decision).
+    let summaryOverride = null;
+    if (Array.isArray(evt.onExpire)) {
+      applyEffects(s, evt.onExpire, evt._ctx);
+    } else if (typeof evt.onExpire === 'function') {
+      const maybe = evt.onExpire(s, evt._ctx);
+      if (typeof maybe === 'string') summaryOverride = maybe;
+    } else {
+      // Default penalty: drain political will on the target (or all
+      // countries if the event is global), plus a world stress bump.
+      const willHit = BALANCE.decisionExpirePoliticalWillHit ?? 8;
+      const stressHit = BALANCE.decisionExpireSocietalStress ?? 3;
+      const targetCountry = evt._ctx?.target;
+      if (targetCountry) {
+        applyEffects(s, [
+          { op: 'addTarget', field: 'politicalWill', value: -willHit },
+          { op: 'addWorld',  field: 'societalStress', value: stressHit },
+        ], evt._ctx);
+        summaryOverride = `${targetCountry.name}: -${willHit} Will · World stress +${stressHit}`;
+      } else {
+        const spread = Math.round(willHit * 0.5);
+        applyEffects(s, [
+          { op: 'addAllCountries', field: 'politicalWill', value: -spread },
+          { op: 'addWorld',        field: 'societalStress', value: stressHit },
+        ], evt._ctx);
+        summaryOverride = `All countries: -${spread} Will · World stress +${stressHit}`;
+      }
+    }
+
+    // Log to the player's decision history so the end-screen recap shows
+    // inaction alongside explicit choices. Use a synthetic "Did nothing"
+    // choice label so the attribution reads honestly.
+    if (!evt._advisorConflict) {
+      s.meta.decisions ||= [];
+      s.meta.decisions.push({
+        id: s.meta.decisions.length,
+        tick: s.meta.tick,
+        year: s.meta.year,
+        quarter: s.meta.quarter,
+        eventId: evt.id,
+        title: evt.title,
+        choiceKey: '__expired__',
+        choiceLabel: 'Did nothing',
+        choiceHeadline: 'The moment passed unanswered.',
+        effectsSummary: summaryOverride ?? 'Consequences absorbed.',
+        tone: 'bad',
+        echoHeadline: null,
+        expired: true,
+      });
+    }
+
+    this.bus.emit(EVT.DECISION_EXPIRED, {
+      eventId: evt.id,
+      title: evt.title,
+      effectsSummary: summaryOverride ?? 'Consequences absorbed.',
+      tone: 'bad',
+    });
   }
 
   resolve(eventId, choiceKey) {

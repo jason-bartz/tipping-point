@@ -9,11 +9,11 @@
 // entry into the TABS array and mount a matching body.
 
 import { EVT } from '../core/EventBus.js';
-import { unreadCount, pendingDecisionCount } from '../model/Dispatches.js';
+import { pendingDecisionCount } from '../model/Dispatches.js';
 
 const TABS = [
   { id: 'country',    label: 'Country' },
-  { id: 'dispatches', label: 'Dispatches' },
+  { id: 'dispatches', label: 'Decisions' },
 ];
 
 export class RightPanel {
@@ -86,20 +86,13 @@ export class RightPanel {
 
   _onDispatch(record) {
     this._updateBadges();
-    // If the dispatches tab is hidden and something landed, give the tab
-    // a brief attention pulse so the player notices even when their eyes
-    // are on the map. Decisions get a stronger, persistent pulse because
-    // the game is auto-paused waiting for them.
+    // Only a pending decision draws attention — everything else is a
+    // quiet log entry. No flash on routine beats.
     const tab = this.tabStrip.querySelector('.rt-tab[data-view="dispatches"]');
     if (!tab) return;
     if (this.active === 'dispatches') return;
     if (record.needsAction) {
       tab.classList.add('rt-tab-urgent');
-    } else {
-      tab.classList.remove('rt-tab-flash');
-      // Force reflow so re-adding the class restarts the animation.
-      void tab.offsetWidth;
-      tab.classList.add('rt-tab-flash');
     }
   }
 
@@ -108,18 +101,13 @@ export class RightPanel {
     if (!tab) return;
     const badge = tab.querySelector('.rt-tab-badge');
     const dot   = tab.querySelector('.rt-tab-dot');
-    const unread  = unreadCount(this.state);
     const pending = pendingDecisionCount(this.state);
-    if (unread > 0) {
-      badge.hidden = false;
-      badge.textContent = String(unread);
-      badge.classList.toggle('urgent', pending > 0);
-    } else {
-      badge.hidden = true;
-    }
-    dot.hidden = pending === 0;
+    // Badge stays hidden — the tab is decisions-only now and we don't want
+    // to nag about already-answered log entries. The pulsing dot alone
+    // signals "something needs you" when a decision is pending.
+    if (badge) badge.hidden = true;
+    if (dot) dot.hidden = pending === 0;
     tab.classList.toggle('rt-tab-urgent', pending > 0);
-    if (pending === 0) tab.classList.remove('rt-tab-urgent');
   }
 
   destroy() {

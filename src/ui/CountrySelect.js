@@ -17,6 +17,22 @@ import { showSaves } from './SavesModal.js';
 const STAGE_INTRO = 'intro';
 const STAGE_PICK  = 'pick';
 
+// First-time recommendation — Germany is medium difficulty with broad agency
+// across all six branches, so new players learn the whole loop instead of
+// specializing too early. Flagged on the card with "Start here" + a glow so
+// the ten-country grid isn't a cold stare.
+const RECOMMENDED_STARTER = 'DEU';
+// Key: localStorage flag for "the player has started a game at least once."
+// After that, we drop the recommended glow — it's a first-run nudge only.
+const RECOMMENDED_SEEN_KEY = 'tipping-point.recommendedSeen.v1';
+const hideRecommended = () => {
+  try { return localStorage.getItem(RECOMMENDED_SEEN_KEY) === '1'; }
+  catch { return false; }
+};
+const markRecommendedSeen = () => {
+  try { localStorage.setItem(RECOMMENDED_SEEN_KEY, '1'); } catch { /* ignore */ }
+};
+
 const ASSET_BASE = import.meta.env?.BASE_URL ?? '/';
 const WALLPAPER_URL = `${ASSET_BASE}title-wallpaper.svg`;
 const LOGO_URL = `${ASSET_BASE}tipping-point-logo.svg`;
@@ -148,9 +164,15 @@ export function renderCountrySelect({ onStart, onResume, onLoadSlot } = {}) {
     const flagHTML = flagSrc
       ? `<img class="starter-flag ${isBlocFlag(c.id) ? 'bloc' : ''}" src="${flagSrc}" alt="" aria-hidden="true" />`
       : '';
+    const isRecommended = c.id === RECOMMENDED_STARTER && !hideRecommended();
+    const recBadge = isRecommended ? '<span class="starter-rec-ribbon" aria-label="Recommended for first game">Start here</span>' : '';
+    const aria = isRecommended
+      ? `${p.title}, ${DIFFICULTY_LABEL[p.difficulty]}, recommended first game — open details`
+      : `${p.title}, ${DIFFICULTY_LABEL[p.difficulty]} — open details`;
 
     return `
-      <div class="starter" data-id="${c.id}" tabindex="0" role="button" aria-label="${p.title}, ${DIFFICULTY_LABEL[p.difficulty]} — open details">
+      <div class="starter ${isRecommended ? 'starter-recommended' : ''}" data-id="${c.id}" tabindex="0" role="button" aria-label="${aria}">
+        ${recBadge}
         <div class="starter-head">
           <div class="starter-title">
             ${flagHTML}
@@ -233,6 +255,7 @@ export function renderCountrySelect({ onStart, onResume, onLoadSlot } = {}) {
     };
     modal.querySelector('.starter-modal-close').addEventListener('click', close);
     modal.querySelector('.starter-select-btn').addEventListener('click', () => {
+      markRecommendedSeen();
       close();
       onStart?.(id);
     });

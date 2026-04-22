@@ -80,7 +80,7 @@ export function quarterlyNatureRemovalPpm(state) {
     for (const b of ['land', 'capture']) {
       const a = c.adoption?.[b] ?? 0;
       if (a <= 0) continue;
-      const weight = (c.baseEmissionsGtCO2 / 40) * a;
+      const weight = (c.baseEmissionsGtCO2 / BALANCE.globalBaselineEmissionsGt) * a;
       total += weight * BALANCE.natureRemovalScale;
     }
   }

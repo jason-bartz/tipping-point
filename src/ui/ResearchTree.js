@@ -1,19 +1,25 @@
-// Left panel. Branch tabs + RPG-style tier tree with SVG connectors. Click a
-// node to see its details in the sticky footer card — from there, start
-// research, watch progress, or review why it's locked.
+// Left panel. Branch tabs + a readable stacked-card tech tree. Click a card
+// to focus it; the sticky footer shows full details (description, prereq
+// chain, research button).
 //
-// Layout: for each visible branch we render one tree container made of four
-// rows (Entry → Scale → Transform → Capstone). Each row is a flex-centered
-// set of round icon nodes. A single absolutely-positioned <svg> behind the
-// rows draws cubic-bezier lines from every node to its prereqs.
+// Layout: one branch visible at a time. Activities in that branch render
+// as full-width horizontal cards grouped under tier headers (Entry → Scale
+// → Transform → Capstone). Each card puts the cost, time, adoption yield,
+// and status on-screen so the player doesn't have to click-to-learn. The
+// previous icon-tile grid with SVG connectors is gone — at 72 px wide tiles
+// the tree was impossible to read; prereqs surface inline as "Needs: X"
+// on locked cards, which is clearer than connector lines at this density.
 //
-// Performance: the tree DOM changes only when the branch switches or the
-// researched/in-progress set changes. Per-tick updates touch only the
-// selected node's detail card (text + progress bar).
+// Performance: card DOM rebuilds only when the branch switches or the
+// researched/in-progress set changes. Per-tick only patches status classes
+// + the detail card.
 
 import { EVT } from '../core/EventBus.js';
 import { BRANCHES, ACTIVITIES, TIER_META } from '../data/activities.js';
 import { researchCostFor, formatSeconds } from '../systems/helpers.js';
+import { researchTicksFor } from '../model/Economy.js';
+
+const COIN = '<img class="credit-icon" src="/icons/credit.png" alt="" aria-hidden="true">';
 
 export class ResearchTree {
   constructor(root, state, bus, researchSystem, loop) {
@@ -26,23 +32,26 @@ export class ResearchTree {
     this.focusId = null;          // currently-focused activity id (details card)
     this._nodeByActivity = new Map();
 
+    // Branch tabs carry a completion chip and a progress-bar underline so
+    // the player can see which branches are mid-research and which are
+    // untouched without clicking through each one.
     const tabs = Object.entries(BRANCHES).map(([id, b]) =>
       `<button class="branch-tab" data-b="${id}" style="--c:${b.color}" title="${b.label} branch">
         <span class="branch-tab-icon" style="color:${b.color}">${b.icon}</span>
         <span class="branch-tab-label">${b.label}</span>
+        <span class="branch-tab-meta" data-branch-meta="${id}">0/0</span>
+        <span class="branch-tab-progress" aria-hidden="true"><span class="branch-tab-progress-fill" data-branch-fill="${id}"></span></span>
       </button>`
     ).join('');
 
     root.innerHTML = `
-      <div class="panel-title">Research</div>
-      <div class="research-intro">Each branch = one research lab (6 slots total). Click a node to see it. Start with a bordered (ready) node.</div>
+      <div class="research-intro">One lab per branch — up to six projects running in parallel. Tap a card to read it, then Research.</div>
       <div class="branches">${tabs}</div>
       <div class="tree-wrap">
         <div class="tree-scroll">
           <div class="tree-canvas"></div>
         </div>
-      </div>
-      <div class="tree-detail"></div>`;
+      </div>`;
 
     root.querySelectorAll('.branch-tab').forEach(t =>
       t.addEventListener('click', () => {
@@ -54,17 +63,16 @@ export class ResearchTree {
 
     this.canvasEl = root.querySelector('.tree-canvas');
     this.scrollEl = root.querySelector('.tree-scroll');
-    this.detailEl = root.querySelector('.tree-detail');
-    this.titleEl  = root.querySelector('.panel-title');
+
+    // Inline detail card — anchored after the clicked node row, advisor-style.
+    // Built once, reattached on click, hidden when no node is focused.
+    this.detailEl = document.createElement('div');
+    this.detailEl.className = 'tree-detail tree-detail-inline';
+    this.detailEl.hidden = true;
 
     bus.on(EVT.TICK,             () => this._tick());
     bus.on(EVT.RESEARCH_DONE,    () => this._rebuild());
     bus.on(EVT.RESEARCH_STARTED, () => this._rebuild());
-
-    if (typeof ResizeObserver !== 'undefined') {
-      this._ro = new ResizeObserver(() => this._drawLines());
-      this._ro.observe(this.canvasEl);
-    }
 
     this._rebuild();
     this._updateTabs();
@@ -73,12 +81,28 @@ export class ResearchTree {
 
   destroy() {
     if (this._animRaf) cancelAnimationFrame(this._animRaf);
-    this._ro?.disconnect();
   }
 
   _updateTabs() {
     this.root.querySelectorAll('.branch-tab').forEach(t =>
       t.classList.toggle('active', t.dataset.b === this.active));
+  }
+
+  // Per-branch "N/M researched" chip + underline progress bar. Run on
+  // every research started/done so the dormant branches update live.
+  _updateBranchProgress() {
+    for (const id of Object.keys(BRANCHES)) {
+      const activities = ACTIVITIES.filter(a => a.branch === id);
+      const total = activities.length;
+      const done = activities.filter(a => this.state.world.researched.has(a.id)).length;
+      const running = !!this.state.world.activeResearch?.[id];
+      const meta = this.root.querySelector(`[data-branch-meta="${id}"]`);
+      const fill = this.root.querySelector(`[data-branch-fill="${id}"]`);
+      if (meta) meta.textContent = running ? `${done}/${total} ·` : `${done}/${total}`;
+      if (fill) fill.style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
+      const tab = this.root.querySelector(`.branch-tab[data-b="${id}"]`);
+      if (tab) tab.classList.toggle('has-running', running);
+    }
   }
 
   _statusOf(a) {
@@ -97,59 +121,130 @@ export class ResearchTree {
 
     const branch = BRANCHES[this.active];
     const out = [];
-    out.push(`<svg class="tree-lines" aria-hidden="true"></svg>`);
     for (const tier of [1, 2, 3, 4]) {
       const acts = byTier[tier];
       if (!acts?.length) continue;
       const meta = TIER_META[tier] ?? { label: `Tier ${tier}`, hint: '' };
-      // Tier header is a single compact pill — chapter marker, not a
-      // decorative chip row. Hint text lives in the title attribute so
-      // the panel stays uncluttered.
-      const tierTip = meta.hint ? `${meta.label} · ${meta.hint}` : meta.label;
+      // Tier header: one row, full-width, label left, hint right. Hint
+      // lands on-screen instead of in a tooltip so the player actually
+      // reads it — that's the whole point of the label.
       out.push(`<div class="tree-tier" data-tier="${tier}">
         <div class="tree-tier-head">
-          <span class="tree-tier-pill" title="${tierTip}">T${tier} · ${meta.label}</span>
+          <span class="tree-tier-num">T${tier}</span>
+          <span class="tree-tier-label">${meta.label}</span>
+          ${meta.hint ? `<span class="tree-tier-hint">${meta.hint}</span>` : ''}
         </div>
-        <div class="tree-row">
+        <div class="tree-list">
           ${acts.map(a => this._nodeHTML(a, branch)).join('')}
         </div>
       </div>`);
     }
     this.canvasEl.innerHTML = out.join('');
 
-    // Index the nodes.
+    // Index the nodes. Click = toggle inline detail beneath that row.
     this._nodeByActivity.clear();
     for (const n of this.canvasEl.querySelectorAll('.tree-node[data-id]')) {
       this._nodeByActivity.set(n.dataset.id, n);
-      n.addEventListener('click', () => {
-        this.focusId = n.dataset.id;
-        this._renderDetail();
-        this._highlightFocus();
-      });
+      n.addEventListener('click', () => this._toggleDetail(n.dataset.id));
     }
 
-    // Draw connector lines between nodes (prereqs).
-    this._drawLines();
-
-    // If no focus yet, preselect the first ready node, else first node.
-    if (!this.focusId || !this.state.activities[this.focusId] || this.state.activities[this.focusId].branch !== this.active) {
-      const firstReady = activitiesInBranch.find(a => this._statusOf(a) === 'ready')
-                      ?? activitiesInBranch.find(a => this._statusOf(a) === 'inprogress')
-                      ?? activitiesInBranch[0];
-      this.focusId = firstReady?.id ?? null;
+    // Clear focus when the branch changes — the inline detail stays closed
+    // until the player clicks a card in the new branch.
+    if (this.focusId && (!this.state.activities[this.focusId] || this.state.activities[this.focusId].branch !== this.active)) {
+      this.focusId = null;
+      this.detailEl.hidden = true;
+      this.detailEl.remove();
     }
     this._renderDetail();
     this._highlightFocus();
-    this._updateTitleBadge();
+    this._reanchorDetail();
+    this._updateBranchProgress();
   }
 
+  // Advisor-pattern expand/collapse. Click the same card to close; click a
+  // different card to re-anchor beneath it.
+  _toggleDetail(id) {
+    if (this.focusId === id) {
+      this.focusId = null;
+      this.detailEl.hidden = true;
+      this.detailEl.remove();
+      this._highlightFocus();
+      return;
+    }
+    this.focusId = id;
+    this._renderDetail();
+    this._reanchorDetail();
+    this._highlightFocus();
+  }
+
+  // Place the detail card in the DOM immediately after the focused card
+  // so it reads as "belonging to" that row. Scroll the clicked card into
+  // view on first anchor so expanding near the bottom of the list doesn't
+  // push the Research button below the fold. Guarded to "first anchor"
+  // so a tick-driven re-render doesn't keep yanking the scroll.
+  _reanchorDetail() {
+    if (!this.focusId) { this.detailEl.hidden = true; this.detailEl.remove(); return; }
+    const nodeEl = this._nodeByActivity.get(this.focusId);
+    if (!nodeEl) { this.detailEl.hidden = true; this.detailEl.remove(); return; }
+    const isFirstAnchor = !this.detailEl.isConnected;
+    nodeEl.insertAdjacentElement('afterend', this.detailEl);
+    this.detailEl.hidden = false;
+    if (isFirstAnchor) {
+      try { nodeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      catch { /* older browsers */ }
+    }
+  }
+
+  // Row card: icon · name + meta · status. Locked cards show the missing
+  // prereq inline; in-progress cards carry a progress bar along the bottom
+  // edge (animated in _animate). Everything a player needs to decide
+  // "research this next?" is visible without clicking.
   _nodeHTML(a, branch) {
     const status = this._statusOf(a);
-    const icon = branch.icon; // re-use branch icon for all nodes in that branch
+    const s = this.state;
+    const mod = s.meta.mod;
+    const cost = researchCostFor(s, a, mod);
+    const ticks = researchTicksFor(a, mod);
+    const secs = formatSeconds(ticks, s);
+    const adoption = Math.round((a.deployAdoption ?? 0) * 100);
+
+    let metaBits = '';
+    let statusEl = '';
+    let extra = '';
+    if (status === 'done') {
+      metaBits = `<span class="tnc-meta-adopt">+${adoption}% on deploy</span>`;
+      statusEl = `<span class="tnc-status done">Researched</span>`;
+    } else if (status === 'inprogress') {
+      const slot = s.world.activeResearch[a.branch];
+      const remSecs = formatSeconds(slot.ticksRemaining, s);
+      metaBits = `<span class="tnc-meta-researching">${remSecs} left</span>`;
+      statusEl = `<span class="tnc-status inprogress">In Progress</span>`;
+      extra = `<span class="tnc-progress" aria-hidden="true"><span class="tnc-progress-fill" data-node-fill="${a.id}"></span></span>`;
+    } else if (status === 'locked') {
+      const missing = a.prereqs
+        .filter(p => !s.world.researched.has(p))
+        .map(p => s.activities[p]?.name ?? p);
+      const needsText = missing.length ? `Needs: ${missing.join(', ')}` : 'Locked';
+      metaBits = `<span class="tnc-meta-needs" title="${needsText}">${needsText}</span>`;
+      statusEl = `<span class="tnc-status locked" aria-label="Locked">🔒</span>`;
+    } else {
+      // Ready
+      metaBits = `<span class="tnc-meta-cost">${cost} ${COIN}</span>
+                  <span class="tnc-meta-sep">·</span>
+                  <span class="tnc-meta-time">${secs}</span>
+                  <span class="tnc-meta-sep">·</span>
+                  <span class="tnc-meta-adopt">+${adoption}%</span>`;
+      statusEl = `<span class="tnc-status ready">Ready</span>`;
+    }
+
     return `<button class="tree-node ${status}" data-id="${a.id}" data-tier="${a.tier}" style="--c:${branch.color}" title="${a.name}">
-      <span class="tree-node-icon">${icon}</span>
-      <span class="tree-node-label">${a.name}</span>
-      <span class="tree-node-status-dot" aria-hidden="true"></span>
+      <span class="tree-node-icon" aria-hidden="true">${branch.icon}</span>
+      <span class="tree-node-body">
+        <span class="tree-node-name">${a.name}</span>
+        <span class="tree-node-meta">${metaBits}</span>
+      </span>
+      ${statusEl}
+      ${extra}
     </button>`;
   }
 
@@ -172,9 +267,9 @@ export class ResearchTree {
   }
 
   _highlightFocus() {
-    // When the focused node is locked, light up the path: every prereq
-    // ancestor + the focused node itself get the `on-path` class. Lines
-    // pick this up via _drawLines, which reads the same set.
+    // When the focused card is locked, light up the whole chain — every
+    // prereq ancestor + the focused card. With the row layout this reads
+    // as "here's what you need, in order" without any connector lines.
     const focused = this.focusId ? this.state.activities[this.focusId] : null;
     const focusedLocked = focused && this._statusOf(focused) === 'locked';
     this._onPath = focusedLocked ? this._prereqAncestors(this.focusId) : new Set();
@@ -183,74 +278,18 @@ export class ResearchTree {
       el.classList.toggle('focused', id === this.focusId);
       el.classList.toggle('on-path', this._onPath.has(id));
     }
-    // Redraw so line classes update too.
-    this._drawLines();
-  }
-
-  _drawLines() {
-    const svg = this.canvasEl.querySelector('.tree-lines');
-    if (!svg) return;
-    const bbox = this.canvasEl.getBoundingClientRect();
-    const w = this.canvasEl.clientWidth;
-    const h = this.canvasEl.clientHeight;
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-    svg.setAttribute('width',  w);
-    svg.setAttribute('height', h);
-
-    const coords = new Map();
-    for (const [id, el] of this._nodeByActivity) {
-      const r = el.getBoundingClientRect();
-      coords.set(id, {
-        cx: r.left - bbox.left + r.width / 2,
-        topY: r.top - bbox.top,
-        bottomY: r.bottom - bbox.top,
-      });
-    }
-
-    // An edge's target being on-path (or the focused node itself) means the
-    // edge is part of the lineage leading to the focused locked node.
-    const onPathTargets = this._onPath
-      ? new Set([...this._onPath, this.focusId])
-      : new Set();
-
-    let paths = '';
-    for (const a of ACTIVITIES) {
-      if (a.branch !== this.active) continue;
-      const to = coords.get(a.id);
-      if (!to) continue;
-      for (const p of a.prereqs) {
-        const from = coords.get(p);
-        if (!from) continue;
-        const x1 = from.cx, y1 = from.bottomY;
-        const x2 = to.cx,   y2 = to.topY;
-        // Orthogonal route: down from source, across at midY, down to target.
-        // Right-angle corners keep the SNES/strategy-game tech-tree feel.
-        const midY = Math.round((y1 + y2) / 2);
-        const d = `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`;
-        const prereqDone = this.state.world.researched.has(p);
-        const onPath = onPathTargets.has(a.id);
-        const cls = ['tree-line'];
-        if (prereqDone) cls.push('active');
-        if (onPath)     cls.push('on-path');
-        paths += `<path d="${d}" class="${cls.join(' ')}" />`;
-      }
-    }
-    svg.innerHTML = paths;
   }
 
   _renderDetail() {
-    if (!this.focusId) {
-      this.detailEl.innerHTML = `<div class="tree-detail-empty">Pick a node above to see what it does.</div>`;
-      return;
-    }
+    if (!this.focusId) { this.detailEl.hidden = true; return; }
     const s = this.state;
     const a = s.activities[this.focusId];
-    if (!a) { this.detailEl.innerHTML = ''; return; }
+    if (!a) { this.detailEl.hidden = true; return; }
     const mod = s.meta.mod;
     const branch = BRANCHES[a.branch];
     const status = this._statusOf(a);
     const cost = researchCostFor(s, a, mod);
-    const ticks = Math.max(1, Math.round((a.researchTicks ?? 4) * (mod?.researchMult ?? 1)));
+    const ticks = researchTicksFor(a, mod);
     const secs = formatSeconds(ticks, s);
     const cp = s.world.climatePoints;
 
@@ -284,11 +323,26 @@ export class ResearchTree {
         ? `${branch.label} lab is busy with another project.`
         : !canAfford ? `Needs ${cost} Credits.` : `Start research (${secs}).`;
       actionBlock = `<button class="research-btn" ${blocked ? 'disabled' : ''} title="${title}">
-        ${branchBusy ? `${branch.label} lab busy` : `Research (${cost} ● · ${secs})`}
+        ${branchBusy ? `${branch.label} lab busy` : `Research (${cost} ${COIN} · ${secs})`}
       </button>`;
     }
 
+    // Longer scientific grounding — only shown if the activity ships one.
+    const detailBlock = a.detail
+      ? `<p class="tree-detail-science">${a.detail}</p>`
+      : '';
+
+    // Will cost/requirement surfaced inline so the political cost is visible
+    // next to the money/time cost instead of buried in the desc.
+    const willRow = (a.willRequirement || a.willCost)
+      ? `<div class="tree-detail-will">
+          ${a.willRequirement ? `<span class="tree-will-chip">Needs Will ${a.willRequirement}</span>` : ''}
+          ${a.willCost ? `<span class="tree-will-chip">Drains ${a.willCost} Will</span>` : ''}
+        </div>`
+      : '';
+
     this.detailEl.innerHTML = `
+      <button type="button" class="tree-detail-close" aria-label="Close detail" title="Close">×</button>
       <div class="tree-detail-head">
         <span class="tree-detail-icon" style="color:${branch.color}">${branch.icon}</span>
         <div class="tree-detail-title">
@@ -300,22 +354,34 @@ export class ResearchTree {
         </div>
       </div>
       <p class="tree-detail-desc">${a.desc}</p>
+      ${detailBlock}
       <div class="tree-detail-stats">
-        <div class="tree-stat"><span class="tree-stat-label">Cost</span><span class="tree-stat-val">${cost} ●</span></div>
+        <div class="tree-stat"><span class="tree-stat-label">Cost</span><span class="tree-stat-val">${cost} ${COIN}</span></div>
         <div class="tree-stat"><span class="tree-stat-label">Time</span><span class="tree-stat-val">${secs}</span></div>
-        <div class="tree-stat"><span class="tree-stat-label">Deploys for</span><span class="tree-stat-val">${a.deployCost} ●</span></div>
+        <div class="tree-stat"><span class="tree-stat-label">Deploys for</span><span class="tree-stat-val">${a.deployCost} ${COIN}</span></div>
         <div class="tree-stat"><span class="tree-stat-label">+Adoption</span><span class="tree-stat-val">+${Math.round(a.deployAdoption*100)}%</span></div>
       </div>
+      ${willRow}
       <div class="tree-detail-prereqs">${prereqLine}</div>
       ${actionBlock}`;
 
     const btn = this.detailEl.querySelector('.research-btn');
     btn?.addEventListener('click', () => this.research.research(a.id));
+    const closeBtn = this.detailEl.querySelector('.tree-detail-close');
+    closeBtn?.addEventListener('click', () => {
+      this.focusId = null;
+      this.detailEl.hidden = true;
+      this.detailEl.remove();
+      this._highlightFocus();
+    });
   }
 
   _tick() {
-    // Keep node status classes + detail card affordability fresh.
-    let statusChanged = false;
+    // Keep node status classes + detail card affordability fresh. A
+    // status transition (e.g. "ready" → "inprogress") means the card's
+    // meta line needs a rebuild too, since the meta text is baked into
+    // the HTML per status.
+    let structuralChange = false;
     for (const [id, el] of this._nodeByActivity) {
       const a = this.state.activities[id];
       if (!a) continue;
@@ -325,12 +391,13 @@ export class ResearchTree {
         : el.classList.contains('ready') ? 'ready'
         : 'locked';
       if (current !== status) {
-        el.classList.remove('done', 'inprogress', 'ready', 'locked');
-        el.classList.add(status);
-        statusChanged = true;
+        structuralChange = true;
+        break;
       }
     }
-    if (statusChanged) this._drawLines();
+    if (structuralChange) {
+      this._rebuild();
+    }
 
     // Detail-card affordability (only if we're showing a ready node).
     if (this.focusId) {
@@ -343,24 +410,10 @@ export class ResearchTree {
         }
       }
     }
-    this._updateTitleBadge();
   }
 
-  _updateTitleBadge() {
-    if (!this.titleEl) return;
-    const runningCount = Object.keys(this.state.world.activeResearch).length;
-    const discountTicks = this.state.world.researchDiscountTicksRemaining;
-    const discountPct = Math.round((this.state.world.researchDiscountPct ?? 0) * 100);
-    let badge = '';
-    if (runningCount > 0) {
-      badge = `<span class="panel-badge" title="${runningCount} project${runningCount === 1 ? '' : 's'} active — one slot per branch.">${runningCount} running</span>`;
-    } else if (discountTicks > 0) {
-      badge = `<span class="panel-badge" title="Research ${discountPct}% off for ${discountTicks} more tick${discountTicks === 1 ? '' : 's'}.">${discountPct}% off · ${discountTicks}t</span>`;
-    }
-    this.titleEl.innerHTML = badge ? `Research ${badge}` : 'Research';
-  }
-
-  // Per-frame: animate the in-progress node + its detail-card progress bar.
+  // Per-frame: animate the in-progress card's bottom bar + the detail-card
+  // progress bar when the focused activity is the one being researched.
   _animate = () => {
     this._animRaf = requestAnimationFrame(this._animate);
     const slot = this.state.world.activeResearch?.[this.active];
@@ -368,12 +421,17 @@ export class ResearchTree {
     const frac = this.loop?.fractionalTick?.() ?? 0;
     const effRem = Math.max(0, slot.ticksRemaining - frac);
     const progress = Math.max(0, Math.min(1, (slot.totalTicks - effRem) / slot.totalTicks));
+    const pctStr = `${(progress * 100).toFixed(2)}%`;
+
+    // The in-progress card's own baseline progress bar.
+    const cardFill = this.canvasEl.querySelector(`[data-node-fill="${slot.id}"]`);
+    if (cardFill) cardFill.style.width = pctStr;
 
     // Detail card, if it's the same activity.
     if (this.focusId === slot.id) {
       const fill = this.detailEl.querySelector('.rp-fill');
       const label = this.detailEl.querySelector('.rp-label');
-      if (fill) fill.style.width = `${(progress * 100).toFixed(2)}%`;
+      if (fill) fill.style.width = pctStr;
       if (label) {
         const secs = formatSeconds(effRem, this.state);
         const pctText = Math.round(progress * 100);

@@ -10,7 +10,7 @@
 //   ,           — open settings
 //   A           — open achievements
 
-export function installKeyboard(loop, { onHelp, onStats, onMute, onSettings, onAchievements } = {}) {
+export function installKeyboard(loop, { onHelp, onStats, onMute, onSettings, onAchievements, onSpeedChanged } = {}) {
   const handler = (e) => {
     if (!e || e.defaultPrevented) return;
     if (e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
@@ -22,10 +22,10 @@ export function installKeyboard(loop, { onHelp, onStats, onMute, onSettings, onA
       case ' ':
       case 'p':
       case 'P':
-        loop.setPaused(!state.meta.paused); e.preventDefault(); break;
-      case '1': loop.setPaused(false); loop.setSpeed(1); break;
-      case '2': loop.setPaused(false); loop.setSpeed(2); break;
-      case '4': loop.setPaused(false); loop.setSpeed(4); break;
+        loop.setPaused(!state.meta.paused); onSpeedChanged?.(); e.preventDefault(); break;
+      case '1': loop.setPaused(false); loop.setSpeed(1); onSpeedChanged?.(); break;
+      case '2': loop.setPaused(false); loop.setSpeed(2); onSpeedChanged?.(); break;
+      case '4': loop.setPaused(false); loop.setSpeed(4); onSpeedChanged?.(); break;
       case 'm':
       case 'M':
         onMute?.(); break;

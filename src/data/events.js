@@ -337,7 +337,7 @@ export const EVENT_POOL = [
     ] },
 
   // ═══════════════ INTERACTIVE (player chooses) ═══════════════
-  { id: 'geo_offer', weight: 2, tone: 'neutral', interactive: true, title: 'Geoengineering Offer',
+  { id: 'geo_offer', weight: 2, tone: 'neutral', interactive: true, category: 'unintended', title: 'Geoengineering Offer',
     guard: (s) => s.world.tempAnomalyC > 1.8,
     headline: 'A billionaire offers to fund stratospheric aerosol injection. Temporary cooling, unknown end game.',
     advisorStances: [
@@ -382,7 +382,7 @@ export const EVENT_POOL = [
           headline: () => 'Four years on: the carbon market sits without its petrostate signatories. Harder talks ahead — but no exemptions written in.' } },
     ] },
 
-  { id: 'nuclear_dilemma', weight: 2, tone: 'neutral', interactive: true, title: 'Nuclear Dilemma',
+  { id: 'nuclear_dilemma', weight: 2, tone: 'neutral', interactive: true, category: 'unintended', title: 'Nuclear Dilemma',
     target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.infra !== 'agricultural')),
     headline: (s, ctx) => `${ctx.target?.name} proposes a massive nuclear buildout. Clean baseload — or another kind of risk?`,
     advisorStances: [
@@ -459,7 +459,7 @@ export const EVENT_POOL = [
           headline: () => 'Three years on: the crowdfunding network that replaced the pledge now outraises major foundations. The climate movement has a wallet.' } },
     ] },
 
-  { id: 'refugee_crisis', weight: 2, tone: 'neutral', interactive: true, title: 'Climate Refugee Crisis',
+  { id: 'refugee_crisis', weight: 2, tone: 'neutral', interactive: true, category: 'unintended', title: 'Climate Refugee Crisis',
     guard: (s) => s.world.tempAnomalyC > 1.6,
     headline: 'Millions displaced by climate disasters. Borders become the question.',
     advisorStances: [
@@ -915,5 +915,646 @@ export const EVENT_POOL = [
         ],
         echo: { delayTicks: 16, tone: 'good',
           headline: (s, ctx) => `Four years on: ${ctx?.target?.name ?? 'the country'}'s public water model is being copied across three continents. Commoditizing the river is no longer on the table.` } },
+    ] },
+
+  // ═══════════════ POOL v3 — EXPANSION ═══════════════
+  // Additions from the design review: positive systemic wins, absurd-but-real
+  // consequences, the hermit saga (wired in Pass 2), grade-school inventor
+  // cluster, and the NYC flood disaster beat that only fires when the world
+  // is already cooking.
+
+  // ─── Positive passive (realistic) ────────────────────────────────────
+  { id: 'food_labeling_standard', weight: 2, tone: 'good', title: 'Global Food-Labeling Standard',
+    headline: 'UN passes a single expiration-date standard. "Best by" gets retired. Food waste drops overnight.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.03 },
+      { op: 'addWorld', field: 'societalStress', value: -2 },
+    ] },
+
+  { id: 'co2_cooling_tech', weight: 2, tone: 'good', title: 'CO₂-Based Cooling Scales',
+    guard: (s) => s.world.researched.size > 5,
+    headline: 'A startup shows CO₂ refrigerants beat HFCs on price and performance. Supermarkets switch first.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.industry', value: 0.04 },
+      { op: 'addWorld', field: 'climatePoints', value: 5 },
+    ] },
+
+  { id: 'pneumatic_valves_mandate', weight: 2, tone: 'good', title: 'Pneumatic Valves Mandated',
+    headline: 'Oil and gas operators must replace leaking pneumatic valves. Methane emissions fall sharply.',
+    effects: [
+      { op: 'addWorld', field: 'co2ppm', value: -0.5 },
+      { op: 'addCountries', where: { infra: 'petrostate' }, field: 'politicalWill', value: -3 },
+    ] },
+
+  { id: 'whale_stewardship', weight: 2, tone: 'good', title: 'Whale Poop Is a Carbon Sink',
+    headline: 'New studies price a single blue whale at $15M in fixed carbon. Whaling laws rewrite themselves.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: 6 },
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.02 },
+    ] },
+
+  { id: 'epr_mandate', weight: 2, tone: 'good', title: 'Extended Producer Responsibility Expands',
+    headline: 'Manufacturers are now on the hook for their products end-to-end. Packaging gets simple again.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.industry', value: 0.04 },
+      { op: 'addAllCountries', field: 'adoption.policy', value: 0.02 },
+    ] },
+
+  { id: 'organic_waste_capture', weight: 2, tone: 'good', title: 'Organic Waste Captured Globally',
+    headline: 'Municipal composting hits near-universal coverage. Landfill methane plunges.',
+    effects: [
+      { op: 'addWorld', field: 'co2ppm', value: -0.3 },
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.03 },
+    ] },
+
+  { id: 'fifteen_minute_cities', weight: 2, tone: 'good', title: '15-Minute Cities Catch On',
+    headline: 'Dozens of mid-sized cities redesign around walkable districts. Car trips down 30%.',
+    effects: [
+      { op: 'addCountries', where: { infra: 'service' }, field: 'adoption.transport', value: 0.05 },
+      { op: 'addCountries', where: { infra: 'service' }, field: 'adoption.land', value: 0.02 },
+    ] },
+
+  { id: 'sidewalks_act', weight: 2, tone: 'good', title: 'America Passes the Sidewalks Act',
+    target: (s) => s.countries.USA || null,
+    headline: (s, ctx) => `${ctx.target?.name ?? 'The United States'} requires sidewalks in new subdivisions. Walkability reaches the suburbs for the first time in 80 years.`,
+    effects: [
+      { op: 'addTarget', field: 'adoption.transport', value: 0.05 },
+      { op: 'addTarget', field: 'politicalWill', value: 4 },
+    ] },
+
+  // ─── Positive passive (tongue-in-cheek) ──────────────────────────────
+  { id: 'bottle_color_swap', weight: 2, tone: 'good', title: 'Pop Brand Changes Bottle Color',
+    headline: 'A global soda brand swaps its green plastic for clear. Recycling rates jump — turns out the tint was the problem.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.industry', value: 0.02 },
+    ] },
+
+  { id: 'popstar_reusable_container', weight: 2, tone: 'good', title: 'Popstar Brings Their Own Container',
+    headline: "The world's biggest pop star pulls a bento box out of her handbag at a restaurant. One-use packaging sales drop 22% for a month.",
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.industry', value: 0.02 },
+      { op: 'addWorld', field: 'climatePoints', value: 2 },
+    ] },
+
+  { id: 'bag_cleanup_app', weight: 2, tone: 'good', title: 'Bag Pollution App Goes Viral',
+    headline: 'An app that scores you for bagging roadside plastic sparks a global cleanup movement. Parks look different.',
+    effects: [
+      { op: 'addAllCountries', field: 'politicalWill', value: 3 },
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.02 },
+    ] },
+
+  { id: 'gen_z_fewer_children', weight: 2, tone: 'neutral', title: 'Gen Z Opts Out of Parenthood',
+    headline: 'Global surveys confirm a durable fertility decline: younger cohorts cite climate anxiety as a top reason for delaying or skipping parenthood.',
+    guard: (s) => s.world.tempAnomalyC > 1.4,
+    // Apply a durable −15% birth-rate modifier worldwide. Durable flag keeps
+    // it from decaying — this is a generational shift, not a transient dip.
+    apply: (s) => {
+      for (const c of Object.values(s.countries)) {
+        const delta = -(c.birthRatePerYear ?? 0) * 0.15;
+        c.birthRateModifier = (c.birthRateModifier ?? 0) + delta;
+        c.birthRateModifierDurable = true;
+      }
+    } },
+
+  // ─── Negative passive (realistic) ────────────────────────────────────
+  { id: 'middle_east_war', weight: 1, tone: 'bad', title: 'War Erupts in the Middle East',
+    guard: (s) => s.meta.tick > 12,
+    headline: 'Regional war breaks out across oil corridors. Offset markets freeze for the calendar year.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: -10 },
+      { op: 'addWorld', field: 'societalStress', value: 6 },
+      { op: 'addCountries', where: { infra: 'petrostate' }, field: 'politicalWill', value: -8 },
+      { op: 'addWorld', field: 'co2ppm', value: 0.3 },
+    ],
+    // Transient death-rate spike in the affected region + neighboring Gulf
+    // states. Decays with the usual PopulationSystem curve.
+    apply: (s) => {
+      for (const id of ['GLF', 'SAU', 'IRN', 'EGY']) {
+        const c = s.countries[id];
+        if (c) c.deathRateModifier = (c.deathRateModifier ?? 0) + 0.004;
+      }
+    } },
+
+  { id: 'offset_bifurcation', weight: 2, tone: 'bad', title: 'Offset Registry Splits',
+    headline: 'A venture-backed registry launches a "removals" tag. The industry bifurcates; project devs drown in paperwork.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: -6 },
+      { op: 'addAllCountries', field: 'adoption.capture', value: -0.02 },
+    ] },
+
+  { id: 'landfill_bankruptcy', weight: 2, tone: 'bad', title: 'Landfill Operator Collapses',
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.infra !== 'petrostate')),
+    headline: (s, ctx) => `${ctx.target?.name}'s largest landfill operator files bankruptcy. Municipalities inherit the leachate — and the bill.`,
+    effects: [
+      { op: 'addTarget', field: 'politicalWill', value: -5 },
+      { op: 'addWorld', field: 'co2ppm', value: 0.2 },
+      { op: 'addWorld', field: 'societalStress', value: 2 },
+    ] },
+
+  { id: 'cop_semantic_fight', weight: 2, tone: 'bad', title: 'COP Stalls on a Single Word',
+    headline: 'Delegates spend the entire summit fighting over "phase-out" vs "phase-down" — and "shall" vs "should." Nothing passes.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: -5 },
+      { op: 'addAllCountries', field: 'politicalWill', value: -3 },
+    ] },
+
+  { id: 'plastics_distraction', weight: 2, tone: 'bad', title: 'Plastics Narrative Swamps the Agenda',
+    headline: 'The plastics crisis eats every op-ed for a year. Carbon goals drift. Both matter — only one has a 2030 deadline.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: -4 },
+      { op: 'addAllCountries', field: 'politicalWill', value: -2 },
+    ] },
+
+  { id: 'datacenter_spike', weight: 2, tone: 'bad', title: 'Data Centers Blow Past Projections',
+    guard: (s) => s.meta.year >= 2028,
+    headline: 'AI training runs push grid demand past every forecast. New gas plants get fast-tracked to keep up.',
+    effects: [
+      { op: 'addWorld', field: 'co2ppm', value: 0.4 },
+      { op: 'addAllCountries', field: 'adoption.energy', value: -0.03 },
+    ] },
+
+  { id: 'water_systems_collapse', weight: 2, tone: 'bad', title: 'Water Systems Collapse',
+    guard: (s) => s.world.tempAnomalyC > 1.8,
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.infra === 'agricultural' || c.infra === 'mixed')),
+    headline: (s, ctx) => `${ctx.target?.name}'s water infrastructure buckles under a multi-year drought. Rationing goes permanent.`,
+    effects: [
+      { op: 'addTarget', field: 'adoption.land', value: -0.06 },
+      { op: 'addTarget', field: 'politicalWill', value: -6 },
+      { op: 'addWorld', field: 'societalStress', value: 5 },
+    ] },
+
+  { id: 'wildfire_smog', weight: 2, tone: 'bad', title: 'Continental Smog Event',
+    guard: (s) => s.world.tempAnomalyC > 1.5,
+    headline: 'Wildfire smoke parks over three time zones for six weeks. Hospitals fill; outdoor work stops.',
+    effects: [
+      { op: 'addWorld', field: 'societalStress', value: 5 },
+      { op: 'addAllCountries', field: 'politicalWill', value: 3 },
+    ] },
+
+  { id: 'keystone_species_loss', weight: 2, tone: 'bad', title: 'Keystone Species Disappear',
+    guard: (s) => s.world.tempAnomalyC > 1.6,
+    headline: 'Three keystone species — a pollinator, a predator, a grazer — are declared functionally extinct in the same year.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.land', value: -0.04 },
+      { op: 'addWorld', field: 'societalStress', value: 4 },
+    ] },
+
+  { id: 'marine_dieoff', weight: 2, tone: 'bad', title: 'Marine Life Die-Off',
+    guard: (s) => s.world.tempAnomalyC > 1.6,
+    headline: 'Ocean temperatures trigger a fish-stock collapse across two major fisheries. Protein markets panic.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: -6 },
+      { op: 'addWorld', field: 'societalStress', value: 4 },
+      { op: 'addAllCountries', field: 'adoption.land', value: -0.02 },
+    ] },
+
+  { id: 'nyc_flood', weight: 2, tone: 'bad', title: 'New York Floods',
+    guard: (s) => s.world.tempAnomalyC > 2.0 && s.world.societalStress > 30,
+    target: (s) => s.countries.USA || null,
+    headline: () => 'A Category 4 storm surge inundates Lower Manhattan. Subway system dark for weeks; insurers start pricing the end of the city.',
+    effects: [
+      { op: 'addTarget', field: 'politicalWill', value: 8 },
+      { op: 'addWorld', field: 'societalStress', value: 8 },
+      { op: 'addAllCountries', field: 'adoption.policy', value: 0.02 },
+    ] },
+
+  // ─── Negative passive (tongue-in-cheek) ──────────────────────────────
+  { id: 'ice_rink_mania', weight: 2, tone: 'bad', title: 'Dictator Discovers Ice Hockey',
+    headline: 'A Korean leader becomes obsessed with hockey, orders rinks in every city. Refrigerant emissions go vertical.',
+    effects: [
+      { op: 'addWorld', field: 'co2ppm', value: 0.3 },
+      { op: 'addAllCountries', field: 'adoption.industry', value: -0.01 },
+    ] },
+
+  { id: 'wind_cycling_fallacy', weight: 2, tone: 'bad', title: '"Windmills Cause Emissions," Pundit Claims',
+    headline: 'A viral op-ed argues renewable variability forces coal to cycle, "making it dirtier than baseload." The math does not check out; the ratings do.',
+    effects: [
+      { op: 'addAllCountries', field: 'politicalWill', value: -3 },
+      { op: 'addAllCountries', field: 'adoption.energy', value: -0.02 },
+    ] },
+
+  // ─── Grade-school kid inventors (tongue-in-cheek positive cluster) ───
+  // Three independent events. Each fires on its own weight — not a saga, just
+  // a thematic cluster that reinforces "solutions come from everywhere."
+  { id: 'grade_school_capture', weight: 2, tone: 'good', title: 'Fifth Grader Invents Capture Toy',
+    headline: 'A ten-year-old\'s science-fair project turns out to be a working ambient carbon absorber. The patent office is confused.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: 6 },
+      { op: 'addAllCountries', field: 'adoption.capture', value: 0.02 },
+    ] },
+
+  { id: 'grade_school_solar', weight: 2, tone: 'good', title: 'Kids Build a Solar Road',
+    headline: "A middle-school class paves their parking lot with their own photovoltaic tiles. It works. Engineers have questions.",
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.energy', value: 0.02 },
+      { op: 'addWorld', field: 'climatePoints', value: 3 },
+    ] },
+
+  { id: 'grade_school_ocean', weight: 2, tone: 'good', title: 'Third Graders Clean an Ocean',
+    headline: 'Schoolchildren in a coastal town invent a plastic-scooping drone. It does more cleanup in a summer than the previous decade of policy.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.02 },
+      { op: 'addAllCountries', field: 'politicalWill', value: 3 },
+    ] },
+
+  // ─── Interactive (pool v3) ───────────────────────────────────────────
+  { id: 'carbon_bank_children', weight: 2, tone: 'neutral', interactive: true, category: 'unintended', title: 'Carbon Bank at Birth',
+    guard: (s) => s.world.researched.has('carbon_price') || s.world.researched.size > 6,
+    headline: 'A proposal: every child is born with a lifetime carbon allowance. Radical accountability — or rationing the right to exist?',
+    advisorStances: [
+      { advisor: 'scientist', supports: 'enact', stance: 'A per-capita ceiling is the fairest carbon math we have ever been offered. Enact it.' },
+      { advisor: 'diplomat',  supports: 'shelve', stance: 'Giving a newborn a debt ledger is a PR catastrophe. Governments that sign this do not survive the next election.' },
+    ],
+    choices: [
+      { key: 'enact', label: 'Enact the lifetime carbon bank', headline: 'Bill passes. Every child gets a lifetime allowance — and a receipt.', tone: 'good',
+        effects: [
+          { op: 'addWorld', field: 'co2ppm', value: -0.5 },
+          { op: 'addAllCountries', field: 'adoption.policy', value: 0.05 },
+          { op: 'addAllCountries', field: 'politicalWill', value: -8 },
+          { op: 'addWorld', field: 'societalStress', value: 4 },
+        ],
+        // Durable policy-driven birth-rate drop. A lifetime carbon ceiling
+        // prices the decision to have a child; demographers read this as a
+        // ~10% structural dip. Flag durable so PopulationSystem doesn't
+        // decay it.
+        apply: (s) => {
+          for (const c of Object.values(s.countries)) {
+            const delta = -(c.birthRatePerYear ?? 0) * 0.10;
+            c.birthRateModifier = (c.birthRateModifier ?? 0) + delta;
+            c.birthRateModifierDurable = true;
+          }
+        },
+        summaryOverride: '−10% global birth rate (durable)',
+        echo: { delayTicks: 16, tone: 'neutral',
+          headline: () => "Four years on: the carbon bank is working and unpopular. Birth rates keep falling; so do emissions. Nobody is sure which caused which." } },
+      { key: 'shelve', label: 'Shelve it', headline: 'Proposal dies in committee. Op-ed writers relax.', tone: 'neutral',
+        effects: [
+          { op: 'addAllCountries', field: 'politicalWill', value: 2 },
+        ],
+        echo: { delayTicks: 14, tone: 'neutral',
+          headline: () => 'Three years on: the carbon-bank idea keeps surfacing. No one has a better answer to per-capita emissions.' } },
+    ] },
+
+  { id: 'patents_cancelled_g7', weight: 2, tone: 'neutral', interactive: true, category: 'unintended', title: 'G7 Climate Patent Cancellation',
+    guard: (s) => s.world.researched.size > 6,
+    headline: 'The G7 proposes cancelling all climate-related patents to speed deployment in the Global South. Labs push back hard.',
+    advisorStances: [
+      { advisor: 'scientist',     supports: 'cancel', stance: 'IP is a speed tax. Drop it and adoption doubles in three years. The labs will survive; the reefs will not.' },
+      { advisor: 'industrialist', supports: 'keep',   stance: 'Without enforceable IP the next breakthrough never gets funded. You are mortgaging 2040 for a headline in 2027.' },
+    ],
+    choices: [
+      { key: 'cancel', label: 'Cancel the patents', headline: 'Patents void. Global South deployment pipelines light up in weeks.', tone: 'good',
+        effects: [
+          { op: 'addRandomBranches', count: 4, value: 0.05 },
+          { op: 'addWorld', field: 'co2ppm', value: -0.4 },
+          { op: 'addWorld', field: 'climatePoints', value: -6 },
+        ],
+        echo: { delayTicks: 18, tone: 'neutral',
+          headline: () => 'Five years on: adoption is genuinely faster. The private R&D pipeline is genuinely thinner. Both are true.' } },
+      { key: 'keep', label: 'Keep the patents, subsidize licensing instead', headline: 'Patents preserved; a licensing fund softens the blow.', tone: 'neutral',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: -3 },
+          { op: 'addAllCountries', field: 'adoption.industry', value: 0.02 },
+        ],
+        echo: { delayTicks: 16, tone: 'neutral',
+          headline: () => 'Four years on: the licensing fund got everyone what they needed, just two years slower than the cancellation would have.' } },
+    ] },
+
+  { id: 'billionaire_overview_effect', weight: 2, tone: 'good', interactive: true, title: 'Billionaire Sees Earth From Orbit',
+    headline: "A billionaire returns from a space jaunt visibly shaken. Announces a $100B climate fund — 'no strings, fast deployment.' Accept?",
+    advisorStances: [
+      { advisor: 'diplomat', supports: 'accept', stance: 'Hundred billion with no strings is a gift. Take it. Thank him publicly. Move on.' },
+      { advisor: 'activist', supports: 'demand', stance: 'Strings are the only leverage we have. Demand governance or this becomes his vanity monument.' },
+    ],
+    choices: [
+      { key: 'accept', label: 'Accept the fund as-is', headline: 'Hundred billion unlocked. Deployment teams are hiring the same week.', tone: 'good',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: 30 },
+          { op: 'addAllCountries', field: 'adoption.energy', value: 0.03 },
+          { op: 'addAllCountries', field: 'adoption.capture', value: 0.02 },
+        ],
+        echo: { delayTicks: 16, tone: 'neutral',
+          headline: () => 'Four years on: the fund shipped more tonnage than any government program. It also rewrote who gets to set climate priorities.' } },
+      { key: 'demand', label: 'Demand public governance', headline: 'Negotiations drag on for a year. A smaller, governed fund emerges.', tone: 'good',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: 12 },
+          { op: 'addAllCountries', field: 'politicalWill', value: 6 },
+          { op: 'addAllCountries', field: 'adoption.policy', value: 0.03 },
+        ],
+        echo: { delayTicks: 14, tone: 'good',
+          headline: () => 'Three years on: the governed fund is smaller, slower, and durable. Its board outlives the billionaire.' } },
+    ] },
+
+  { id: 'whale_tax_debate', weight: 2, tone: 'neutral', interactive: true, title: 'The Whale Tax',
+    headline: 'A coalition proposes taxing industrial whale-kills at $15M each — the carbon-sink value of a living whale. Commercial fleets lobby furiously.',
+    advisorStances: [
+      { advisor: 'scientist',     supports: 'impose', stance: 'Whales are a measurable carbon sink. Pricing their ecological service is conservation math, not sentiment.' },
+      { advisor: 'industrialist', supports: 'table',  stance: 'Taxing specific species picks winners and losers across four industries. Start with carbon, end with whales — not the other way around.' },
+    ],
+    choices: [
+      { key: 'impose', label: 'Impose the whale tax', headline: 'Tax passes. Whaling fleets pivot or fold. Ocean carbon numbers look better on paper.', tone: 'good',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: 4 },
+          { op: 'addAllCountries', field: 'adoption.land', value: 0.03 },
+          { op: 'addCountries', where: { infra: 'industrial' }, field: 'politicalWill', value: -3 },
+        ],
+        echo: { delayTicks: 14, tone: 'good',
+          headline: () => 'Three years on: the whale tax is quietly the most cost-effective ocean climate policy on the books.' } },
+      { key: 'table', label: 'Table it for now', headline: 'Tax shelved. Fleets celebrate. Marine biologists keep publishing the math.', tone: 'neutral',
+        effects: [
+          { op: 'addAllCountries', field: 'politicalWill', value: 2 },
+        ],
+        echo: { delayTicks: 16, tone: 'neutral',
+          headline: () => 'Four years on: "ecosystem pricing" enters mainstream economics textbooks. The whale tax is an inevitability, just not this year.' } },
+    ] },
+
+  // ─── IPCC narrative pulse — scripted-cadence events ──────────────────
+  // Force-picked by EventSystem every BALANCE.ipccCadenceTicks (every 4
+  // years). Tag `ipcc: true` is what makes them eligible for the cadence
+  // pick — otherwise they behave as normal passive events, so they can also
+  // surface off-cadence at low weight if nothing else wants to fire.
+  { id: 'ipcc_synthesis', weight: 1, tone: 'neutral', ipcc: true, title: 'IPCC Synthesis Report',
+    headline: (s) => `The IPCC publishes its synthesis report. Current trajectory: +${(s.world.tempAnomalyC + 0.4).toFixed(1)}°C by 2100. Decarbonization pace must roughly double.`,
+    effects: [
+      { op: 'addAllCountries', field: 'politicalWill', value: 3 },
+      { op: 'addWorld', field: 'societalStress', value: 2 },
+    ] },
+
+  { id: 'ipcc_phase_fight', weight: 1, tone: 'bad', ipcc: true, title: 'IPCC Delegates Deadlock',
+    headline: 'Delegates spend the full IPCC plenary fighting over "phase-out" vs "phase-down" and "shall" vs "should." Final text keeps all four.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: -3 },
+      { op: 'addAllCountries', field: 'politicalWill', value: -2 },
+    ] },
+
+  { id: 'ipcc_cap_left', weight: 1, tone: 'neutral', ipcc: true, title: 'IPCC: The Budget Is Smaller Than We Thought',
+    headline: (s) => `New modeling cuts the remaining 1.5°C carbon budget by a third. At current rates, it runs out before ${s.meta.year + 6}.`,
+    effects: [
+      { op: 'addWorld', field: 'societalStress', value: 3 },
+      { op: 'addAllCountries', field: 'politicalWill', value: 4 },
+    ] },
+
+  { id: 'ipcc_nature_scaled', weight: 1, tone: 'good', ipcc: true, title: 'IPCC: Nature-Based Solutions Scale',
+    headline: 'IPCC working group finds nature-based removals are delivering 40% above projections. Protected-area expansion is the single biggest lever this year.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.03 },
+      { op: 'addWorld', field: 'climatePoints', value: 4 },
+    ] },
+
+  // ─── Hermit saga — recurring character, four beats ────────────────────
+  // Stages advance through state.meta.hermitStage. Each event guards on
+  // current stage + a light game-state condition so the arc paces itself
+  // across a playthrough. The final beat is interactive and reads world
+  // state so the outcome flavor matches the actual situation.
+  { id: 'hermit_sighting', weight: 3, tone: 'neutral', title: 'Man in a Cabin',
+    guard: (s) => (s.meta.hermitStage ?? 0) === 0 && s.meta.tick > 10,
+    headline: "A reporter finds a hermit living off-grid — solar panels, own garden, a sweater knit from his own sheep's wool. He declines an interview.",
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: 1 },
+    ],
+    apply: (s) => { s.meta.hermitStage = 1; } },
+
+  { id: 'hermit_treatise', weight: 3, tone: 'good', title: 'The Hermit Publishes',
+    guard: (s) => (s.meta.hermitStage ?? 0) === 1 && s.meta.tick > 20,
+    headline: "The cabin hermit's privately-printed treatise on self-sufficient living leaks online. Three chapters on passive cooling go mildly viral.",
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.02 },
+      { op: 'addAllCountries', field: 'adoption.energy', value: 0.02 },
+      { op: 'addWorld', field: 'climatePoints', value: 4 },
+    ],
+    apply: (s) => { s.meta.hermitStage = 2; } },
+
+  { id: 'hermit_breakthrough', weight: 2, tone: 'good', title: 'Hermit Solves One Thing Completely',
+    guard: (s) => (s.meta.hermitStage ?? 0) === 2 && s.world.researched.size > 6,
+    headline: 'The hermit — still declining to leave his cabin — emails a working proof for a cheap atmospheric carbon sink. Engineers replicate it in a weekend.',
+    effects: [
+      { op: 'addWorld', field: 'climatePoints', value: 14 },
+      { op: 'addAllCountries', field: 'adoption.capture', value: 0.05 },
+      { op: 'addWorld', field: 'co2ppm', value: -0.5 },
+    ],
+    apply: (s) => { s.meta.hermitStage = 3; } },
+
+  { id: 'hermit_emergence', weight: 2, tone: 'neutral', interactive: true, title: 'The Hermit Emerges',
+    guard: (s) => (s.meta.hermitStage ?? 0) === 3 && s.meta.tick > 60,
+    headline: (s) => {
+      const nz = Object.values(s.countries).filter(c => c.netZero).length;
+      const total = Object.values(s.countries).length;
+      const ratio = total ? nz / total : 0;
+      if (ratio > 0.5) return 'The hermit walks out of his cabin for the first time in decades. He finds a visibly cooler, quieter world. He wanted to know if it worked.';
+      if (ratio > 0.2) return 'The hermit walks out of his cabin. The world is recognizable — stressed, smoky, but intact. He asks a reporter, quietly, "did we make it?"';
+      return 'The hermit walks out of his cabin. The forest around it is dying. He looks at the reporter and asks what year it is.';
+    },
+    choices: [
+      { key: 'celebrate', label: 'Bring him to the UN', headline: "The hermit addresses the General Assembly in a hand-knit sweater. He says the transition was always a cultural problem. People listen.", tone: 'good',
+        effects: [
+          { op: 'addAllCountries', field: 'politicalWill', value: 8 },
+          { op: 'addWorld', field: 'climatePoints', value: 10 },
+        ],
+        echo: { delayTicks: 12, tone: 'good',
+          headline: () => 'Three years on: the hermit has gone home again. "Cabin-Pragmatism" is a recognized political philosophy in four countries.' } },
+      { key: 'return', label: 'Let him go back to the cabin', headline: 'He returns to his sheep. The world keeps his treatise. Nobody asks him to come back again.', tone: 'good',
+        effects: [
+          { op: 'addAllCountries', field: 'adoption.land', value: 0.03 },
+          { op: 'addWorld', field: 'climatePoints', value: 5 },
+        ],
+        echo: { delayTicks: 12, tone: 'good',
+          headline: () => 'Three years on: the cabin still stands. So does the treatise. So, mostly, does the world.' } },
+    ] },
+
+  { id: 'global_pandemic_shutdown', weight: 1, tone: 'neutral', interactive: true, category: 'unintended', title: 'Pandemic Shutdown Decision',
+    guard: (s) => s.world.societalStress > 25,
+    headline: 'A novel respiratory pandemic hits. Coordinated global shutdown would clear the skies — and break the economy. Impose it?',
+    advisorStances: [
+      { advisor: 'activist', supports: 'shutdown', stance: 'The last shutdown gave us the cleanest air a generation has breathed. This one saves lives either way.' },
+      { advisor: 'diplomat', supports: 'targeted', stance: 'A global shutdown fractures the coalitions we rely on. Go targeted, keep the supply chains, keep the trust.' },
+    ],
+    choices: [
+      { key: 'shutdown', label: 'Coordinate a global shutdown', headline: 'World activity halts. Skies clear. Unemployment spikes. Transmission drops.', tone: 'neutral',
+        effects: [
+          { op: 'addWorld', field: 'co2ppm', value: -0.8 },
+          { op: 'addWorld', field: 'climatePoints', value: -12 },
+          { op: 'addWorld', field: 'societalStress', value: 6 },
+          { op: 'addAllCountries', field: 'politicalWill', value: -4 },
+        ],
+        // Transient death-rate spike from the pandemic itself. Not durable —
+        // PopulationSystem decays it over ~3.5 years, matching the real-world
+        // shape of excess-death curves.
+        apply: (s) => {
+          for (const c of Object.values(s.countries)) {
+            c.deathRateModifier = (c.deathRateModifier ?? 0) + 0.003;
+          }
+        },
+        summaryOverride: '+0.3% global death rate (transient)',
+        echo: { delayTicks: 12, tone: 'neutral',
+          headline: () => "Three years on: the shutdown was the cleanest quarter in measurement history. Nobody agrees it was worth it; nobody agrees it wasn't." } },
+      { key: 'targeted', label: 'Targeted measures, keep the economy open', headline: 'Targeted controls deployed. Transmission slower but sustained. Emissions unchanged.', tone: 'neutral',
+        effects: [
+          { op: 'addWorld', field: 'societalStress', value: 3 },
+          { op: 'addAllCountries', field: 'politicalWill', value: 1 },
+        ],
+        echo: { delayTicks: 12, tone: 'neutral',
+          headline: () => 'Three years on: the targeted response is a case study in what public-health schools teach — and what climate schools wish we had tried.' } },
+    ] },
+
+  // ═══════════════ POOL v4 — NEGATIVE REBALANCE ═══════════════
+  // The passive pool skewed good-over-bad by ~28% weight (128 vs 100) pre-v4,
+  // which let a passive player drift gently toward wins. These 14 events add
+  // ~+27 bad weight to land the pool near parity. Themes chosen to fill
+  // gaps: hard-sector inertia, backfires from good intentions, champion-
+  // country backslides, AI-era misinformation, plus two new guarded tipping
+  // points. Voice stays grounded — most events have a systemic cause, not a
+  // villain.
+
+  // ─── Passive bad (realistic) ─────────────────────────────────────────
+  { id: 'heavy_industry_stall', weight: 2, tone: 'bad', title: 'Heavy Industry Stalls',
+    headline: 'Steel, cement and aluminum decarbonization slips another decade. The capex is real, the green-steel buyers are thin, and nobody wants to move first.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.industry', value: -0.03 },
+      { op: 'addWorld', field: 'climatePoints', value: -6 },
+    ] },
+
+  { id: 'permit_backlog', weight: 3, tone: 'bad', title: 'Interconnect Queue Breaks',
+    guard: (s) => s.meta.tick > 20,
+    headline: 'Transmission-interconnect queues clear the decade mark. Finished wind and solar sit idle, waiting on copper and a court date.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.energy', value: -0.03 },
+      { op: 'addWorld', field: 'climatePoints', value: -5 },
+    ] },
+
+  { id: 'biofuel_deforestation', weight: 2, tone: 'bad', title: 'Biofuel Mandate Backfires',
+    guard: (s) => s.world.researched.size > 4,
+    headline: 'A decade-old biofuel mandate is audited. The tropical forests lost to feedstock farms now emit more than the fuel saves. Retractions all around.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.land', value: -0.04 },
+      { op: 'addWorld', field: 'co2ppm', value: 0.3 },
+    ] },
+
+  { id: 'deepfake_ceo_scandal', weight: 2, tone: 'bad', title: 'Deepfake Discredits a Champion',
+    headline: 'An AI-generated video shows a prominent climate-positive CEO taking a bribe. It is fake; the damage is real. Three ESG funds pull out by Friday.',
+    effects: [
+      { op: 'addWorld', field: 'societalStress', value: 4 },
+      { op: 'addAllCountries', field: 'politicalWill', value: -4 },
+    ] },
+
+  { id: 'climate_denial_court_win', weight: 2, tone: 'bad', title: 'Supreme Court Strikes Down Climate Law',
+    guard: (s) => s.world.researched.size > 4,
+    headline: 'A closely-watched ruling voids a cornerstone emissions regulation on administrative-law grounds. Successor legislation, timing: unclear.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.policy', value: -0.04 },
+      { op: 'addWorld', field: 'climatePoints', value: -4 },
+    ] },
+
+  { id: 'renewable_recall', weight: 2, tone: 'bad', title: 'Wind Turbine Blade Recall',
+    headline: 'Blade defects force a global recall of a best-selling turbine model. Installations pause for six months while fleets are inspected.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.energy', value: -0.03 },
+      { op: 'addWorld', field: 'societalStress', value: 2 },
+    ] },
+
+  { id: 'heatwave_blackout_cascade', weight: 2, tone: 'bad', title: 'Heatwave Blackout Cascade',
+    guard: (s) => s.world.tempAnomalyC > 1.5,
+    headline: 'A three-country heat dome pushes AC demand past grid capacity. Rolling blackouts kill hundreds; every remaining coal plant comes back online.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.energy', value: -0.02 },
+      { op: 'addAllCountries', field: 'politicalWill', value: -3 },
+      { op: 'addWorld', field: 'societalStress', value: 4 },
+    ] },
+
+  { id: 'green_champion_backslide', weight: 2, tone: 'bad', title: 'Champion Country Backslides',
+    // Punishes concentration: the better you make a country, the more
+    // valuable (and fragile) it is. Skipped early-game when no country has
+    // both high energy and policy adoption.
+    guard: (s) => Object.values(s.countries).some(c => !c.netZero && (c.adoption?.energy ?? 0) > 0.4 && (c.adoption?.policy ?? 0) > 0.3),
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => !c.netZero && (c.adoption?.energy ?? 0) > 0.4 && (c.adoption?.policy ?? 0) > 0.3)),
+    headline: (s, ctx) => `${ctx.target?.name} elects a coalition running on "climate pragmatism." The flagship policies are softened in the first month.`,
+    effects: [
+      { op: 'addTarget', field: 'adoption.policy', value: -0.05 },
+      { op: 'addTarget', field: 'adoption.energy', value: -0.03 },
+      { op: 'addTarget', field: 'politicalWill', value: -6 },
+    ] },
+
+  { id: 'fertilizer_crunch', weight: 2, tone: 'bad', title: 'Fertilizer Supply Crunch',
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.infra === 'agricultural')),
+    headline: (s, ctx) => `Nitrogen-fertilizer prices spike 4× across ${ctx.target?.name}. Regen-ag programs lose funding to emergency subsidies for the old system.`,
+    effects: [
+      { op: 'addTarget', field: 'adoption.land', value: -0.05 },
+      { op: 'addTarget', field: 'politicalWill', value: -4 },
+      { op: 'addWorld', field: 'societalStress', value: 2 },
+    ] },
+
+  { id: 'climate_journalist_killed', weight: 2, tone: 'bad', title: 'Climate Journalist Killed',
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.infra === 'petrostate')),
+    headline: (s, ctx) => `An investigative reporter covering oil lobbying in ${ctx.target?.name} is killed in a "targeted hit-and-run." Sector coverage freezes for the year.`,
+    effects: [
+      { op: 'addTarget', field: 'politicalWill', value: -6 },
+      { op: 'addAllCountries', field: 'politicalWill', value: -2 },
+      { op: 'addWorld', field: 'societalStress', value: 4 },
+    ] },
+
+  { id: 'youth_burnout', weight: 2, tone: 'bad', title: 'Youth Climate Movement Fatigues',
+    guard: (s) => s.meta.tick > 40,
+    headline: 'After a decade in the streets, the climate-youth wave enters a burnout cycle. Turnout at the annual march halves; op-eds start writing its eulogy.',
+    effects: [
+      { op: 'addAllCountries', field: 'politicalWill', value: -4 },
+      { op: 'addWorld', field: 'societalStress', value: 2 },
+    ] },
+
+  // ─── Passive bad (tongue-in-cheek) ───────────────────────────────────
+  { id: 'ski_country_goes_bust', weight: 2, tone: 'bad', title: 'Ski Country Goes Bust',
+    guard: (s) => s.world.tempAnomalyC > 1.5,
+    headline: 'Two alpine nations declare their ski-tourism industries structurally insolvent. The snow cannons gave up first.',
+    effects: [
+      { op: 'addCountries', where: { infra: ['service', 'mixed'] }, field: 'politicalWill', value: -3 },
+      { op: 'addWorld', field: 'societalStress', value: 3 },
+    ] },
+
+  // ─── Guarded tipping-points (new) ────────────────────────────────────
+  { id: 'ocean_stratification', weight: 1, tone: 'bad', title: 'Ocean Stratification Locks In',
+    guard: (s) => s.world.tempAnomalyC > 1.7,
+    headline: 'Warmer surface waters stop mixing with the deep ocean. The ocean carbon pump slows — years earlier than any model projected.',
+    effects: [
+      { op: 'addWorld', field: 'co2ppm', value: 0.6 },
+      { op: 'addAllCountries', field: 'adoption.capture', value: -0.02 },
+    ] },
+
+  { id: 'sahel_monsoon_fails', weight: 1, tone: 'bad', title: 'Sahel Monsoon Fails',
+    guard: (s) => s.world.tempAnomalyC > 1.8,
+    headline: 'The West African monsoon fails for the third year running. Regional food systems collapse; displacement pressure reaches the coasts.',
+    effects: [
+      { op: 'addWorld', field: 'societalStress', value: 5 },
+      { op: 'addAllCountries', field: 'politicalWill', value: -3 },
+    ] },
+
+  // ═══════════════ POOL v5 — FARMING / GARDENING CLUSTER ═══════════════
+  // Small-weight positive cluster tied to the new home_gardening activity and
+  // the Garden Plot collectable. Themed around grassroots food systems —
+  // individually low-impact, collectively a real lever. Voice mirrors the
+  // grade-school inventor cluster: tongue-in-cheek with a grain of truth.
+
+  { id: 'community_gardens_boom', weight: 2, tone: 'good', title: 'Community Gardens Boom',
+    headline: 'Every vacant lot in three dozen cities becomes a raised bed. Parks departments are thrilled, insurers are confused.',
+    effects: [
+      { op: 'addCountries', where: { infra: ['service', 'mixed'] }, field: 'adoption.land', value: 0.03 },
+      { op: 'addAllCountries', field: 'politicalWill', value: 2 },
+    ] },
+
+  { id: 'victory_gardens_return', weight: 2, tone: 'good', title: 'Victory Gardens Return',
+    headline: 'Wartime-era backyard gardening campaigns get a retro rebrand. A million front lawns become tomato patches.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.02 },
+      { op: 'addWorld', field: 'climatePoints', value: 3 },
+    ] },
+
+  { id: 'balcony_farming_wave', weight: 2, tone: 'good', title: 'Balcony Farming Goes Viral',
+    headline: 'A dense-city micro-gardening app hits 30M users. The joke phrase "vertical urbanism" starts meaning something.',
+    effects: [
+      { op: 'addCountries', where: { infra: 'service' }, field: 'adoption.land', value: 0.04 },
+    ] },
+
+  { id: 'school_garden_movement', weight: 2, tone: 'good', title: 'Every School Gets a Garden',
+    headline: 'School-district food-literacy mandates take root. Kids grow lunch; cafeteria carbon footprints crater.',
+    effects: [
+      { op: 'addAllCountries', field: 'adoption.land', value: 0.02 },
+      { op: 'addAllCountries', field: 'politicalWill', value: 2 },
     ] },
 ];

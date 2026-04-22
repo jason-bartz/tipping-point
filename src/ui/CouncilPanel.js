@@ -1,7 +1,7 @@
-// Floating cabinet strip pinned to the lower-left of the map. Shows four
-// portrait chips — mood ring, name, current one-liner, influence bar, and
-// current agenda (with progress). Clicking a chip expands a detail card that
-// offers the signature ability button once influence ≥ 80.
+// Council panel. Lives inside the left sidebar's Council tab as a vertical
+// list of advisor seats — portrait, mood dot, name, one-liner, influence
+// bar, and active agenda. Clicking a seat expands a detail card beneath it
+// with the signature-ability button (unlocks at 80 influence).
 //
 // Rendering strategy mirrors HUD / ResearchTree: skeleton once, text/class
 // updates per tick. No innerHTML on the hot path.
@@ -11,11 +11,13 @@ import { BALANCE } from '../config/balance.js';
 import { ADVISOR_IDS, ABILITIES, ADVISOR_ARCHETYPES } from '../data/advisors.js';
 import { agendaDef } from '../model/Advisors.js';
 
+// Mood colors live in CSS (:root --mood-* + .council-mood-dot.mood-{key}).
+// This map is display-only — pair each mood with its label.
 const MOOD_COPY = {
-  confident: { label: 'Confident', dot: '#22c55e' },
-  neutral:   { label: 'Steady',    dot: '#facc15' },
-  worried:   { label: 'Worried',   dot: '#f59e0b' },
-  alarmed:   { label: 'Alarmed',   dot: '#ef4444' },
+  confident: { label: 'Confident' },
+  neutral:   { label: 'Steady'    },
+  worried:   { label: 'Worried'   },
+  alarmed:   { label: 'Alarmed'   },
 };
 
 export class CouncilPanel {
@@ -26,30 +28,22 @@ export class CouncilPanel {
     this.container = container;
     this.expandedId = null;
 
+    // The left-panel tab host owns layout; this root just holds the seat
+    // list + the expanded-detail slot. No toggle — tab switching handles
+    // show/hide at the host level.
     this.root = document.createElement('div');
-    // Default to collapsed so the Council doesn't obscure the map on load —
-    // the toggle chip stays visible at the bottom-left for the player to
-    // open when they want to check agendas.
-    this.root.className = 'council-panel collapsed';
+    this.root.className = 'council-panel';
     this.root.setAttribute('aria-label', 'Advisory Board');
 
-    this.toggle = document.createElement('button');
-    this.toggle.className = 'council-toggle';
-    this.toggle.type = 'button';
-    this.toggle.textContent = '▲ Council';
-    this.toggle.title = 'Show or hide the Advisory Board.';
-    this.toggle.setAttribute('aria-expanded', 'false');
-    this.toggle.addEventListener('click', () => this._toggleCollapsed());
-    this.root.appendChild(this.toggle);
-
     this.strip = document.createElement('div');
-    this.strip.className = 'council-strip';
+    this.strip.className = 'council-list';
     this.root.appendChild(this.strip);
 
+    // Expanded detail lives beneath the clicked seat — we attach it to the
+    // DOM inline after the seat element in _toggleDetail().
     this.detail = document.createElement('div');
     this.detail.className = 'council-detail';
     this.detail.hidden = true;
-    this.root.appendChild(this.detail);
 
     this.seatEls = new Map();
     for (const id of ADVISOR_IDS) {
@@ -66,7 +60,13 @@ export class CouncilPanel {
       bus.on(EVT.ADVISOR_AGENDA_PROPOSED, () => this.update()),
       bus.on(EVT.ADVISOR_AGENDA_RESOLVED, () => this.update()),
       bus.on(EVT.ADVISOR_ABILITY_USED, () => this.update()),
+      bus.on(EVT.ADVISOR_WHISPER, () => this.update()),
       bus.on(EVT.COUNTRY_SELECTED, () => this.update()),
+      // Re-render the expanded detail when a new dispatch lands for the
+      // currently-expanded advisor so their comment stream stays live.
+      bus.on(EVT.DISPATCH_LOGGED, (d) => {
+        if (d?.advisorId && d.advisorId === this.expandedId) this._renderDetail();
+      }),
     ];
     this.update();
   }
@@ -75,12 +75,6 @@ export class CouncilPanel {
     this._unsubs.forEach(u => u?.());
     this.root?.remove();
     this.seatEls.clear();
-  }
-
-  _toggleCollapsed() {
-    const collapsed = this.root.classList.toggle('collapsed');
-    this.toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    this.toggle.textContent = collapsed ? '▲ Council' : '▼ Council';
   }
 
   _buildSeat(id) {
@@ -108,8 +102,22 @@ export class CouncilPanel {
   }
 
   _toggleDetail(id) {
-    if (this.expandedId === id) { this.expandedId = null; this.detail.hidden = true; return; }
+    // Collapse if clicking the already-open seat.
+    if (this.expandedId === id) {
+      this.expandedId = null;
+      this.detail.hidden = true;
+      this.detail.remove();
+      for (const el of this.seatEls.values()) el.classList.remove('expanded');
+      return;
+    }
     this.expandedId = id;
+    // Re-anchor the detail card immediately beneath the clicked seat so the
+    // expanded content reads as "belonging to" that advisor.
+    const seatEl = this.seatEls.get(id);
+    if (seatEl) {
+      seatEl.insertAdjacentElement('afterend', this.detail);
+      for (const el of this.seatEls.values()) el.classList.toggle('expanded', el === seatEl);
+    }
     this.detail.hidden = false;
     this._renderDetail();
   }
@@ -135,9 +143,10 @@ export class CouncilPanel {
     infFill.style.width = `${Math.max(3, Math.min(100, Math.round(seat.influence)))}%`;
     infFill.style.background = seat.color;
 
-    const mood = MOOD_COPY[seat.mood] ?? MOOD_COPY.neutral;
+    const moodKey = MOOD_COPY[seat.mood] ? seat.mood : 'neutral';
+    const mood = MOOD_COPY[moodKey];
     const dot = el.querySelector('.council-mood-dot');
-    dot.style.background = mood.dot;
+    dot.className = `council-mood-dot mood-${moodKey}`;
     dot.title = `${seat.title} — ${mood.label}`;
 
     const agenda = seat.agenda;
@@ -180,21 +189,34 @@ export class CouncilPanel {
       return 'Ready.';
     })();
 
+    // Recent comments attributed to this advisor — pulled from the dispatch
+    // log by advisorId. Oldest first (chronological) so newest sits at the
+    // bottom, closest to the ability button.
+    const comments = (this.s.meta.dispatches ?? [])
+      .filter(d => d.advisorId === seat.id)
+      .slice(0, 8); // newest-first; cap to 8
+    const commentsHTML = comments.length
+      ? `<div class="council-detail-comments">
+           <div class="council-detail-comments-head">Recent comments</div>
+           <ul class="council-comment-list">
+             ${comments.map(d => `<li class="council-comment tone-${d.tone}">
+               <span class="council-comment-when">Q${d.quarter} ${d.year}</span>
+               <span class="council-comment-body">${d.body || d.title}</span>
+             </li>`).join('')}
+           </ul>
+         </div>`
+      : '';
+
     this.detail.innerHTML = `
       <div class="council-detail-head">
-        <span class="council-detail-portrait" aria-hidden="true">
-          <img class="council-detail-portrait-img" alt="" src="${seat.portrait}" decoding="async">
-        </span>
-        <div>
-          <div class="council-detail-name">${seat.name}</div>
-          <div class="council-detail-title">${seat.title}</div>
-          <div class="council-detail-line">“${seat.commentary || seat.tagline}”</div>
-        </div>
+        <div class="council-detail-title">${seat.title}</div>
+        <div class="council-detail-line">“${seat.commentary || seat.tagline}”</div>
       </div>
       <div class="council-detail-stats">
         <div><b>Influence</b> ${Math.round(seat.influence)} / 100</div>
         <div><b>Mood</b> ${MOOD_COPY[seat.mood]?.label ?? '—'}</div>
       </div>
+      ${commentsHTML}
       <div class="council-detail-ability">
         <div class="council-ability-head"><b>${ability?.label ?? 'Signature'}</b> — ${ability?.hint ?? ''}</div>
         <div class="council-ability-status">${lockReason}</div>

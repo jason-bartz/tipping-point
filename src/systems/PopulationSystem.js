@@ -29,12 +29,28 @@ export class PopulationSystem {
   step() {
     const s = this.state;
     const temp = s.world.tempAnomalyC;
+    const stress = s.world.societalStress ?? 0;
 
     for (const c of Object.values(s.countries)) {
       const avgAdoption = select.avgAdoption(c);
-      const { populationM, deltaM } = projectQuarter(c, temp, avgAdoption);
+      const { populationM, deltaM } = projectQuarter(c, temp, avgAdoption, stress);
       c.populationM = populationM;
       c.populationDeltaM = deltaM;
+      // Decay event-driven modifiers. Non-durable modifiers fade 20% per
+      // tick toward zero (~95% gone in 14 ticks ≈ 3.5 years); durable ones
+      // stay until an event explicitly unsets them. We treat a modifier as
+      // durable if its absolute value is flagged via a companion boolean —
+      // today we use a simple approach: modifiers persist unless zeroed
+      // explicitly. Decay is applied only to the non-durable half, tracked
+      // on sibling fields `birthRateModifierDecay`/`deathRateModifierDecay`.
+      if (c.birthRateModifier && !c.birthRateModifierDurable) {
+        c.birthRateModifier *= 0.8;
+        if (Math.abs(c.birthRateModifier) < 1e-6) c.birthRateModifier = 0;
+      }
+      if (c.deathRateModifier && !c.deathRateModifierDurable) {
+        c.deathRateModifier *= 0.8;
+        if (Math.abs(c.deathRateModifier) < 1e-6) c.deathRateModifier = 0;
+      }
     }
 
     // Append to the rolling history window so StatsModal can sparkline it.

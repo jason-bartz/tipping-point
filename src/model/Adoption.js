@@ -69,9 +69,10 @@ export function willDeltaFor(country, world) {
   return delta;
 }
 
-// Clamp helper so systems don't reimplement the bounds.
+// Clamp helper so systems don't reimplement the bounds. Bounds come from
+// BALANCE so a rebalance updates every call site.
 export function clampWill(w) {
-  return Math.max(8, Math.min(100, w));
+  return Math.max(BALANCE.minPoliticalWill, Math.min(BALANCE.maxPoliticalWill, w));
 }
 
 // Net-zero threshold check for a single country. Uses BALANCE value so a

@@ -151,6 +151,10 @@ export class CollectableSystem {
       country.politicalWill = Math.min(100, country.politicalWill + 4);
       return `+${c.value} Credits. Political Will in ${country.name} +4.`;
     }
+    if (typeDef.effect === 'land_boost') {
+      country.adoption.land = Math.min(1, (country.adoption.land ?? 0) + 0.03);
+      return `+${c.value} Credits. Land adoption in ${country.name} +3%.`;
+    }
     if (typeDef.effect === 'adoption_boost') {
       const entries = Object.entries(country.adoption).sort((a, b) => b[1] - a[1]);
       const [branch] = entries[0];

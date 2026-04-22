@@ -60,7 +60,22 @@ export function floatAt(target, text, tone = 'info') {
 
   const el = document.createElement('div');
   el.className = `gp-float ${tone || 'info'}`;
-  el.textContent = text;
+  // "● " is the legacy credits marker — swap it for the coin icon so float
+  // labels match the HUD. Everything else renders as plain text.
+  const coinIdx = text.indexOf('●');
+  if (coinIdx >= 0) {
+    el.textContent = text.slice(0, coinIdx);
+    const img = document.createElement('img');
+    img.className = 'credit-icon';
+    img.src = '/icons/credit.png';
+    img.alt = '';
+    img.setAttribute('aria-hidden', 'true');
+    el.appendChild(img);
+    const tail = text.slice(coinIdx + 1);
+    if (tail) el.appendChild(document.createTextNode(tail));
+  } else {
+    el.textContent = text;
+  }
   el.style.left = `${Math.round(spawnX)}px`;
   el.style.top  = `${Math.round(spawnY)}px`;
   host.appendChild(el);

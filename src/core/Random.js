@@ -15,35 +15,45 @@ export function mulberry32(seed) {
   };
 }
 
-// Tiny wrapper that carries its seed along so we can save/restore without
-// capturing a closure. Everywhere that used Math.random in the old code now
-// calls rng.random() / rng.pick(...) / rng.shuffled(...).
+// Tiny wrapper that carries its seed AND its stream position so we can
+// save/restore and pick up exactly where we left off. The internal `_a` is
+// the mulberry32 state (a single 32-bit int), bumped once per draw.
+// Everywhere that used Math.random in the old code now calls rng.random() /
+// rng.pick(...) / rng.shuffled(...).
 export class Rng {
-  constructor(seed) {
+  constructor(seed, state) {
     this.seed = seed >>> 0;
-    this._next = mulberry32(this.seed);
+    this._a = (state !== undefined ? state : this.seed) >>> 0;
   }
 
-  // Reseed after deserializing a save. We don't restore stream position —
-  // the save captures the *world*; a fresh stream from the same seed is close
-  // enough for a save game. Perfect determinism would require streaming the
-  // counter too; noted as future work.
-  reseed(seed) {
+  // Reseed after deserializing a save. Pass `state` from snapshot() to
+  // resume the exact stream position; omit it to start fresh from seed.
+  reseed(seed, state) {
     this.seed = seed >>> 0;
-    this._next = mulberry32(this.seed);
+    this._a = (state !== undefined ? state : this.seed) >>> 0;
   }
 
-  random() { return this._next(); }
+  // Snapshot the state for persistence. Pair with `new Rng(seed, state)` or
+  // `reseed(seed, state)` to restore an identical stream.
+  snapshot() { return this._a >>> 0; }
+
+  random() {
+    this._a = (this._a + 0x6D2B79F5) >>> 0;
+    let t = this._a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
 
   pick(arr) {
     if (!arr || !arr.length) return null;
-    return arr[Math.floor(this._next() * arr.length)];
+    return arr[Math.floor(this.random() * arr.length)];
   }
 
   shuffled(arr) {
     const out = arr.slice();
     for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(this._next() * (i + 1));
+      const j = Math.floor(this.random() * (i + 1));
       [out[i], out[j]] = [out[j], out[i]];
     }
     return out;
@@ -55,7 +65,7 @@ export class Rng {
     let total = 0;
     for (const it of items) total += Math.max(0, weightFn(it));
     if (total <= 0) return null;
-    let r = this._next() * total;
+    let r = this.random() * total;
     for (const it of items) {
       r -= Math.max(0, weightFn(it));
       if (r <= 0) return it;

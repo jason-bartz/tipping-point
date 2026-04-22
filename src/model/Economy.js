@@ -15,7 +15,7 @@
 import { BALANCE } from '../config/balance.js';
 
 // Per-tick CP income, before synergy discounts are applied. Base × country
-// modifier, plus 0.4 CP per country at Net Zero (diplomatic dividend).
+// modifier, plus 0.25 CP per country at Net Zero (diplomatic dividend).
 export function incomePerTick(state) {
   const mod = state?.meta?.mod;
   const base = BALANCE.baseCPPerTick * (mod?.cpMult ?? 1);
@@ -23,7 +23,7 @@ export function incomePerTick(state) {
   for (const c of Object.values(state?.countries ?? {})) {
     if (c.netZero) nzCount += 1;
   }
-  return base + nzCount * 0.4;
+  return base + nzCount * 0.25;
 }
 
 // Credits to start research on `activity`. Country modifier scales, diamond
@@ -44,4 +44,16 @@ export function deployCost(state, country, activity, mod) {
   let cost = (activity?.deployCost ?? 1) * (mod?.deployMult ?? 1);
   if (country?.isHome) cost *= (1 - BALANCE.homeDeployDiscount);
   return Math.max(1, Math.ceil(cost));
+}
+
+// Ticks to research `activity`. Layers the tier stretch (so tier-4 capstones
+// feel like multi-minute projects rather than a short wait) on top of the
+// per-activity researchTicks weight and the country's researchMult. Floored
+// at 1 so nothing ever completes instantly.
+export function researchTicksFor(activity, mod) {
+  const base = activity?.researchTicks ?? 4;
+  const tier = activity?.tier ?? 1;
+  const tierMult = BALANCE.researchTickTierMultiplier?.[tier] ?? 1;
+  const raw = base * tierMult * (mod?.researchMult ?? 1);
+  return Math.max(1, Math.round(raw));
 }

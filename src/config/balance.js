@@ -24,21 +24,41 @@ export const BALANCE = {
   tempResponseLag: 0.04,
 
   // ─── Economy (Carbon Credits).
-  // Tight by design; early = cheap tier-1 (1–3 credits, 2–3 ticks), endgame
-  // capstones cost 20–30 credits and take 12–16 ticks of focused research.
+  // Tight by design; early = cheap tier-1 (1–3 credits, ~4–6 ticks of trickle),
+  // endgame capstones cost 20–30 credits and take 12–16 ticks of focused
+  // research. Passive income and milestone lumps are deliberately small so
+  // the player has to *choose* what to spend on — hoarding double-digit
+  // stockpiles should feel like dragging, not default state.
   startingClimatePoints: 3,
-  baseCPPerTick: 0.6,
-  milestoneBonusCP: 18,
+  baseCPPerTick: 0.45,
+  milestoneBonusCP: 10,
+
+  // ─── Research time. Per-activity `researchTicks` in src/data/activities.js
+  // is the *relative* weight within a tier; this table stretches each tier
+  // into an RTS-style cadence. At 4.5s per tick (1× speed):
+  //   Tier 1: quick pass → ~15–25 s
+  //   Tier 2: meaningful commit → ~45–60 s
+  //   Tier 3: major project → ~2 min
+  //   Tier 4: endgame moonshot → ~4–5 min
+  // Labs run per-branch (one concurrent research per branch), so higher
+  // tiers = real opportunity cost: you lock up a lab for minutes while you
+  // could be stacking two shorter tier-1/2 gains instead.
+  researchTickTierMultiplier: { 1: 1.5, 2: 2.5, 3: 4, 4: 5 },
 
   // ─── Adoption
   adjacencySpreadRate: 0.017,
   politicalWillDecay: 0.013,
+  // Floor on political will. Natural drift can't push a country below this
+  // even after extreme heat + stress penalties — keeps the worst case a
+  // "grudging cooperator" rather than a locked-out zero.
+  minPoliticalWill: 8,
+  maxPoliticalWill: 100,
   // Director pacing — events felt like a faucet at 0.11/tick with no warmup
-  // and no minimum gap. 0.055 halves the base rate; the grace window gives
-  // the player ~27s of quiet at the start to get oriented; the min-gap keeps
-  // beats from stacking within a few ticks of each other. The passive track
-  // picks from non-interactive events only.
-  eventFireChancePerTick: 0.055,
+  // and no minimum gap. 0.065 with a grace window and min-gap keeps beats
+  // from stacking within a few ticks of each other. The passive track picks
+  // from non-interactive events only. Bumped from 0.055 after the v3 pool
+  // expansion — more content on the bench deserves more airtime.
+  eventFireChancePerTick: 0.065,
   eventStartupGraceTicks: 6,
   eventMinGapTicks: 4,
 
@@ -52,17 +72,33 @@ export const BALANCE = {
   interactiveMaxGapTicks: 30,
   interactiveChancePerTick: 0.15,
 
+  // Decision timeout. An interactive event that's been pending this many
+  // ticks auto-expires — inaction is a choice and it costs you. Individual
+  // events can override with `timeoutTicks` on their def.
+  decisionTimeoutTicks: 6,            // ~1.5 in-game years at 4 ticks/year
+
+  // Default penalty when a decision expires without a choice. Stackable —
+  // author events can add `onExpire` effects that run *instead of* these.
+  decisionExpirePoliticalWillHit: 8,  // drains target (or all if no target) by this
+  decisionExpireSocietalStress: 3,    // bumps world stress — inaction breeds unrest
+
   // News flavor ticker — separate from the event director. Shorter grace
   // since a flavor blurb is quieter than a modal, but still enough that the
   // ticker doesn't spout a headline in the first few seconds after unpause.
   newsFlavorStartupGraceTicks: 4,
 
+  // IPCC narrative cadence. Every `ipccCadenceTicks` (4 years at 4 ticks/yr)
+  // the director force-picks an IPCC-tagged passive event so the game has a
+  // recognizable "report drops" rhythm. Skipped during startup grace and on
+  // ticks with a pending interactive event.
+  ipccCadenceTicks: 16,
+
   // Business-as-usual emission growth: economies expand ~0.8%/yr without
   // intervention. Dampened per-country by adoption level.
   bauEmissionGrowthPerYear: 0.008,
 
-  // ─── Collectables — ~1 per 24s, max 2 on screen, 3-tick startup grace.
-  collectableFireChancePerTick: 0.11,
+  // ─── Collectables — ~1 per 35s, max 2 on screen, 3-tick startup grace.
+  collectableFireChancePerTick: 0.075,
   collectableTTLTicks: 5,
   collectableMaxConcurrent: 2,
   collectableStartupGraceTicks: 3,
@@ -131,6 +167,72 @@ export const BALANCE = {
   netZeroThresholdAdoption: 0.80,
   baseEmissionReductionPerAdoption: 0.95,
   natureRemovalScale: 0.022,
+  // Normalization baseline for nature-removal weighting (GtCO₂/yr). Each
+  // country's land/capture pull scales by its emissions share relative to
+  // this baseline, so big emitters' forests matter more than small ones'.
+  // Set near the starting global baseline — retune alongside any country
+  // roster or baseEmissions overhaul.
+  globalBaselineEmissionsGt: 40,
+
+  // ─── Forestry — forest health per country + accrued carbon liability on
+  //     the sitting government. Forest health regenerates from deployed land
+  //     activities and decays under temperature stress. Liability accrues
+  //     from wildfire events and from forest erosion below baseline; when it
+  //     hits `liabilityCap`, the government falls.
+  forestry: {
+    // Per-tick regeneration when adoption.land = 1.0. Scales linearly with
+    // adoption. At 0.5 adoption, ~0.25% health restored per tick.
+    restorationPerTick: 0.005,
+    // Per-tick decay from temperature stress. Modulated by (1 - adoption.land)
+    // so well-tended forests resist better. Zero below the threshold.
+    tempStressPerTick: 0.003,
+    tempStressThresholdC: 1.4,
+    // If forestHealth drops below forestBaseline * this factor, passive
+    // liability accrues per tick proportional to the gap. Keeps idle
+    // degradation from being invisible to the political mechanic.
+    passiveLiabilityTriggerFraction: 0.8,
+    passiveLiabilityPerTick: 2.0,
+    // One-shot liability hits from wildfire events. Keyed by event id so
+    // events.js can stay declarative; ForestrySystem reads from here.
+    wildfireLiability: {
+      wildfire:       30,  // global megafire season
+      wildfire_local: 25,  // targeted country wildfire
+      wildfire_smog:  15,  // continental smog event
+    },
+  },
+
+  // ─── Government — 2-slot model per country. Incumbent and shadow each
+  //     carry a climate-stance tag (`green` | `mixed` | `denier`). When the
+  //     incumbent's carbonLiability hits the cap, the shadow promotes and a
+  //     new shadow is generated. Tags apply continuous modifiers to will
+  //     drift and spread (via AdoptionSystem) and a one-shot swing on
+  //     succession (via ForestrySystem).
+  government: {
+    liabilityCap: 100,
+    // Continuous while in office.
+    tagMultipliers: {
+      green:  { willBonus:  6, spreadMult: 1.08, liabilityRate: 0.85 },
+      mixed:  { willBonus:  0, spreadMult: 1.00, liabilityRate: 1.00 },
+      denier: { willBonus: -6, spreadMult: 0.92, liabilityRate: 1.50 },
+    },
+    // Applied once on the tick a new incumbent takes office, based on their
+    // tag. Models the political honeymoon (or hostility).
+    fallEffects: {
+      green:  { will:  15, adoption: { land:  0.05, policy:  0.03 } },
+      mixed:  { will:   2, adoption: {} },
+      denier: { will: -15, adoption: { policy: -0.05, energy: -0.03 } },
+    },
+    // Probability weights for generating an initial shadow, by infra type.
+    // Petrostates skew denier (their political economy resists the transition);
+    // services/agricultural skew greener (exposure to climate harm).
+    initialShadowTagWeights: {
+      petrostate:   { green: 1, mixed: 3, denier: 6 },
+      industrial:   { green: 2, mixed: 5, denier: 3 },
+      service:      { green: 4, mixed: 4, denier: 2 },
+      mixed:        { green: 3, mixed: 4, denier: 3 },
+      agricultural: { green: 3, mixed: 4, denier: 3 },
+    },
+  },
 
   // ─── History window (ticks). ~40 years at 4 ticks/year.
   historyLength: 160,

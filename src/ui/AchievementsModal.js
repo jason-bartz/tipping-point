@@ -4,6 +4,15 @@
 
 import { installModalA11y } from './modal-a11y.js';
 import { listAllAchievements, loadUnlocked, readNew, clearNew } from '../model/Achievements.js';
+import { LOCKED_ICON } from '../data/achievements.js';
+
+const ASSET_BASE = import.meta.env?.BASE_URL ?? '/';
+const assetUrl = (p) => {
+  if (!p) return p;
+  if (/^https?:/.test(p)) return p;
+  const stripped = p.startsWith('/') ? p.slice(1) : p;
+  return `${ASSET_BASE}${stripped}`;
+};
 
 export function showAchievements({ state } = {}) {
   if (document.querySelector('.achievements-modal')) return;
@@ -27,8 +36,12 @@ export function showAchievements({ state } = {}) {
       ${all.map(a => {
         const isUnlocked = unlocked.has(a.id);
         const isNew = freshlyNew.has(a.id);
-        return `<div class="achievement ${isUnlocked ? 'unlocked' : 'locked'} ${isNew ? 'is-new' : ''}">
-          <div class="achievement-icon">${isUnlocked ? a.icon : '🔒'}</div>
+        // CSS uses `color` + a mask to tint the pixel-art SVG. Tint is the
+        // achievement's palette color when unlocked; locked rows stay muted.
+        const tintStyle = isUnlocked && a.tint ? ` style="--ach-tint:${a.tint}"` : '';
+        const iconSrc = isUnlocked ? assetUrl(a.icon) : assetUrl(LOCKED_ICON);
+        return `<div class="achievement ${isUnlocked ? 'unlocked' : 'locked'} ${isNew ? 'is-new' : ''}"${tintStyle}>
+          <div class="achievement-icon" aria-hidden="true" style="--ach-icon:url('${iconSrc}')"></div>
           <div class="achievement-body">
             <div class="achievement-title">${a.title}${isNew ? ' <span class="achievement-new-chip">NEW</span>' : ''}</div>
             <div class="achievement-desc">${a.desc}</div>

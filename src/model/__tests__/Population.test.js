@@ -12,8 +12,23 @@ import {
   formatPopulationFull,
   formatPopulationCompact,
   formatDelta,
+  stressBirthPenalty,
+  climateAnxietyPenalty,
+  effectiveBirthRate,
+  effectiveDeathRate,
   POP,
 } from '../Population.js';
+
+// Helper: build a country-shaped object from crude rates (per 1000 → decimal).
+// Keeps tests readable and avoids hand-coding decimals everywhere.
+const country = ({ birth, death, vuln = 1, pop = 100, birthMod = 0, deathMod = 0 }) => ({
+  populationM: pop,
+  birthRatePerYear: birth / 1000,
+  deathRatePerYear: death / 1000,
+  birthRateModifier: birthMod,
+  deathRateModifier: deathMod,
+  climateVulnerability: vuln,
+});
 
 describe('climateMortalityRate', () => {
   it('is 0 at or below the threshold', () => {
@@ -64,62 +79,167 @@ describe('adoptionShield', () => {
   });
 });
 
-describe('annualGrowthRate', () => {
-  const INDIA_LIKE = { baseGrowthPerYear: 0.008, climateVulnerability: 3 };
-  const GERMANY_LIKE = { baseGrowthPerYear: 0.001, climateVulnerability: 1 };
-
-  it('equals base rate below the climate threshold', () => {
-    expect(annualGrowthRate(INDIA_LIKE, 1.2, 0)).toBeCloseTo(0.008, 6);
-    expect(annualGrowthRate(GERMANY_LIKE, 1.2, 0)).toBeCloseTo(0.001, 6);
+describe('stressBirthPenalty', () => {
+  it('is zero at zero stress', () => {
+    expect(stressBirthPenalty(0)).toBe(0);
   });
 
-  it('drops below base rate once temperature crosses the threshold', () => {
-    const r = annualGrowthRate(INDIA_LIKE, 2.5, 0);
-    expect(r).toBeLessThan(0.008);
+  it('rises linearly then caps', () => {
+    expect(stressBirthPenalty(10)).toBeCloseTo(0.10, 5);
+    expect(stressBirthPenalty(25)).toBeCloseTo(0.25, 5);
+    // Past the cap we stay pinned — a fertility collapse can't go infinite.
+    expect(stressBirthPenalty(80)).toBeCloseTo(POP.stressBirthCapFraction, 5);
+  });
+});
+
+describe('climateAnxietyPenalty', () => {
+  it('is zero below the threshold', () => {
+    expect(climateAnxietyPenalty(0, 3)).toBe(0);
+    expect(climateAnxietyPenalty(1.2, 3)).toBe(0);
+    expect(climateAnxietyPenalty(POP.mortalityTempThreshold, 3)).toBe(0);
+  });
+
+  it('is quadratic in excess warming', () => {
+    // 2× excess → 4× penalty before the cap bites.
+    const a = climateAnxietyPenalty(1.8, 1);
+    const b = climateAnxietyPenalty(2.1, 1);
+    const ratio = b / a;
+    expect(ratio).toBeGreaterThan(3.5);
+    expect(ratio).toBeLessThan(5);
+  });
+
+  it('scales with vulnerability and caps', () => {
+    const low  = climateAnxietyPenalty(2.0, 1);
+    const high = climateAnxietyPenalty(2.0, 3);
+    expect(high).toBeCloseTo(low * 3, 5);
+    // Severe warming + max vulnerability hits the cap, not a runaway.
+    expect(climateAnxietyPenalty(3.5, 3)).toBeCloseTo(POP.climateAnxietyCapFraction, 5);
+  });
+});
+
+describe('effectiveBirthRate', () => {
+  it('matches intrinsic rate in a calm, cool world', () => {
+    const c = country({ birth: 12, death: 8 });
+    expect(effectiveBirthRate(c, 1.2, 0)).toBeCloseTo(0.012, 6);
+  });
+
+  it('drops under stress', () => {
+    const c = country({ birth: 12, death: 8 });
+    const calm = effectiveBirthRate(c, 1.2, 0);
+    const crisis = effectiveBirthRate(c, 1.2, 25);
+    expect(crisis).toBeLessThan(calm);
+    expect(crisis).toBeCloseTo(calm * (1 - POP.stressBirthCapFraction), 5);
+  });
+
+  it('drops further under climate anxiety for vulnerable countries', () => {
+    const tropical = country({ birth: 15, death: 6, vuln: 3 });
+    const temperate = country({ birth: 15, death: 6, vuln: 1 });
+    const tHot = effectiveBirthRate(tropical, 2.5, 0);
+    const tempHot = effectiveBirthRate(temperate, 2.5, 0);
+    expect(tHot).toBeLessThan(tempHot);
+  });
+
+  it('adds event-driven modifier after multipliers', () => {
+    const c = country({ birth: 12, death: 8, birthMod: -0.002 });
+    const r = effectiveBirthRate(c, 1.2, 0);
+    expect(r).toBeCloseTo(0.012 - 0.002, 6);
+  });
+
+  it('clamps at zero — no negative births', () => {
+    const c = country({ birth: 5, death: 10, birthMod: -0.020 });
+    expect(effectiveBirthRate(c, 1.2, 0)).toBe(0);
+  });
+});
+
+describe('effectiveDeathRate', () => {
+  it('matches intrinsic rate in a calm, cool world', () => {
+    const c = country({ birth: 12, death: 8 });
+    expect(effectiveDeathRate(c, 1.2, 0)).toBeCloseTo(0.008, 6);
+  });
+
+  it('adds climate mortality above the threshold', () => {
+    const c = country({ birth: 12, death: 8, vuln: 2 });
+    const cool = effectiveDeathRate(c, 1.2, 0);
+    const warm = effectiveDeathRate(c, 2.5, 0);
+    expect(warm).toBeGreaterThan(cool);
+  });
+
+  it('is reduced by adoption shield', () => {
+    const c = country({ birth: 12, death: 8, vuln: 2 });
+    const unshielded = effectiveDeathRate(c, 2.5, 0);
+    const shielded   = effectiveDeathRate(c, 2.5, 1);
+    expect(shielded).toBeLessThan(unshielded);
+  });
+
+  it('adds event-driven death-rate modifier', () => {
+    const c = country({ birth: 12, death: 8, deathMod: 0.003 });
+    expect(effectiveDeathRate(c, 1.2, 0)).toBeCloseTo(0.011, 6);
+  });
+});
+
+describe('annualGrowthRate', () => {
+  it('equals birth − death below the climate threshold', () => {
+    const c = country({ birth: 12, death: 8 });
+    expect(annualGrowthRate(c, 1.2, 0, 0)).toBeCloseTo(0.004, 6);
+  });
+
+  it('drops below intrinsic rate once temperature crosses the threshold', () => {
+    const india = country({ birth: 16.4, death: 7.2, vuln: 3 });
+    const r = annualGrowthRate(india, 2.5, 0, 0);
+    expect(r).toBeLessThan(0.0092);
   });
 
   it('can turn negative under severe warming', () => {
-    const r = annualGrowthRate(INDIA_LIKE, 4.0, 0);
+    const india = country({ birth: 16.4, death: 7.2, vuln: 3 });
+    const r = annualGrowthRate(india, 4.0, 0, 0);
     expect(r).toBeLessThan(0);
   });
 
-  it('adoption meaningfully cushions the drop', () => {
-    const noShield = annualGrowthRate(INDIA_LIKE, 3.0, 0);
-    const shielded = annualGrowthRate(INDIA_LIKE, 3.0, 1);
+  it('adoption cushions the drop', () => {
+    const india = country({ birth: 16.4, death: 7.2, vuln: 3 });
+    const noShield = annualGrowthRate(india, 3.0, 0, 0);
+    const shielded = annualGrowthRate(india, 3.0, 1, 0);
     expect(shielded).toBeGreaterThan(noShield);
   });
 
-  it('low-vulnerability country suffers less drag than high-vulnerability at same base', () => {
-    // Isolate the vulnerability effect by holding base growth constant.
-    const SAME_BASE = { baseGrowthPerYear: 0.005 };
-    const v1 = annualGrowthRate({ ...SAME_BASE, climateVulnerability: 1 }, 3.0, 0);
-    const v3 = annualGrowthRate({ ...SAME_BASE, climateVulnerability: 3 }, 3.0, 0);
-    expect(v1).toBeGreaterThan(v3);
-    expect(v1 - v3).toBeGreaterThan(0.008); // ≥0.8pp/yr spread at +3°C
+  it('low-vulnerability country suffers less drag than high-vulnerability at same rates', () => {
+    const v1 = country({ birth: 12, death: 8, vuln: 1 });
+    const v3 = country({ birth: 12, death: 8, vuln: 3 });
+    const a = annualGrowthRate(v1, 3.0, 0, 0);
+    const b = annualGrowthRate(v3, 3.0, 0, 0);
+    expect(a).toBeGreaterThan(b);
+    expect(a - b).toBeGreaterThan(0.006);
   });
 });
 
 describe('projectQuarter', () => {
-  it('grows population at the base rate with a neutral climate', () => {
-    const c = { populationM: 100, baseGrowthPerYear: 0.01, climateVulnerability: 1 };
-    const r = projectQuarter(c, 1.0, 0);
-    // Expected: 100 * (1 + 0.01/4) = 100.25
+  it('grows population at the intrinsic rate with a neutral climate', () => {
+    const c = country({ birth: 12, death: 2, pop: 100 });
+    const r = projectQuarter(c, 1.0, 0, 0);
+    // Net = 10/1000 = 0.01/yr → 0.0025/quarter → 100.25M.
     expect(r.populationM).toBeCloseTo(100.25, 5);
     expect(r.deltaM).toBeCloseTo(0.25, 5);
     expect(r.annualRatePct).toBeCloseTo(1.0, 5);
   });
 
-  it('shrinks population when climate drag exceeds base growth', () => {
-    const c = { populationM: 100, baseGrowthPerYear: 0.005, climateVulnerability: 3 };
-    const r = projectQuarter(c, 4.0, 0);
+  it('shrinks population when climate drag exceeds natural growth', () => {
+    const c = country({ birth: 7, death: 2, vuln: 3, pop: 100 });
+    const r = projectQuarter(c, 4.0, 0, 0);
     expect(r.populationM).toBeLessThan(100);
     expect(r.deltaM).toBeLessThan(0);
   });
 
   it('never returns a negative population (clamps at 0)', () => {
-    const c = { populationM: 0, baseGrowthPerYear: -1, climateVulnerability: 3 };
-    const r = projectQuarter(c, 4.0, 0);
+    // Birth 0, death 1000/1000 → -100%/yr — degenerate case; stays at 0.
+    const c = country({ birth: 0, death: 1000, vuln: 3, pop: 0 });
+    const r = projectQuarter(c, 4.0, 0, 0);
     expect(r.populationM).toBeGreaterThanOrEqual(0);
+  });
+
+  it('reports birth/death breakdowns that sum to net rate', () => {
+    const c = country({ birth: 16.4, death: 7.2, vuln: 3, pop: 1000 });
+    const r = projectQuarter(c, 2.5, 0.4, 5);
+    expect(r.birthRatePct - r.deathRatePct).toBeCloseTo(r.annualRatePct, 5);
   });
 });
 
@@ -155,8 +275,12 @@ describe('formatters', () => {
 
   it('formatDelta prefixes with sign and uses sensible units', () => {
     expect(formatDelta(0)).toBe('+0');
-    expect(formatDelta(1.5)).toBe('+1.50M');
-    expect(formatDelta(-2.3)).toBe('−2.30M');
+    // Millions round to whole numbers — the HUD wants "+30M/yr", not
+    // spuriously-precise "+29.63M/yr".
+    expect(formatDelta(1.5)).toBe('+2M');
+    expect(formatDelta(-2.3)).toBe('−2M');
+    expect(formatDelta(29.63)).toBe('+30M');
+    // Below 1M we keep K granularity so small swings still read.
     expect(formatDelta(0.05)).toBe('+50K');
     expect(formatDelta(-0.05)).toBe('−50K');
   });

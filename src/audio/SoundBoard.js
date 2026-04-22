@@ -370,6 +370,15 @@ export class SoundBoard {
     });
   }
 
+  // Barely-there sine blip for button hovers. 30 ms, very low gain — the
+  // kind of thing you register only in aggregate. Rate-limited by the caller
+  // so fast cursor sweeps don't stack into a buzz.
+  hover() {
+    this._play((t) => {
+      this._sineAt(t, { freq: N.E5, duration: 0.03, gain: 0.018, release: 0.04 });
+    });
+  }
+
   // Descending minor "game over" — triangle tones dropping through a C
   // minor-ish descent with a soft low noise breath on the final note.
   lose() {

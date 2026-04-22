@@ -6,11 +6,12 @@
 // rebuild transient dependencies from scratch.
 
 import { BALANCE } from '../config/balance.js';
-import { COUNTRIES, COUNTRY_IDS } from '../data/countries.js';
+import { COUNTRIES, COUNTRY_IDS, FOREST_BASELINE } from '../data/countries.js';
 import { ACTIVITIES } from '../data/activities.js';
 import { COUNTRY_PROFILES, DEFAULT_MOD, startingAdoption } from '../data/profiles.js';
 import { ADVISOR_IDS } from '../data/advisors.js';
 import { resolveAdvisor } from '../model/Advisors.js';
+import { createGovernment } from '../model/Government.js';
 import { Rng, makeSeed } from './Random.js';
 
 // Build a normalized, symmetric adjacency table once per game. Neighbor
@@ -47,6 +48,9 @@ export function createState(homeCountryId, { seed } = {}) {
   const profile = COUNTRY_PROFILES[homeCountryId];
   const mod = profile?.mod ?? DEFAULT_MOD;
   const rngSeed = (seed ?? makeSeed()) >>> 0;
+  // Init-time rng. Drawn from during createGovernment() and nothing else at
+  // init — after setup, state.meta.rng owns all subsequent randomness.
+  const initRng = new Rng(rngSeed);
 
   return {
     meta: {
@@ -85,6 +89,17 @@ export function createState(homeCountryId, { seed } = {}) {
       // interactive decision. Remembers whether the player was already
       // paused so we don't resume a deliberately-paused game.
       autoPausedForDecision: false,
+      // Recurring-character thread: the hermit in the cabin. Stages advance
+      // 0 → 1 → 2 → 3 as the arc fires; events guard on the current stage
+      // so they only play in order. 0 means "not yet introduced."
+      hermitStage: 0,
+      // IPCC narrative cadence. EventSystem force-picks an IPCC-tagged event
+      // every `ipccCadenceTicks` (see BALANCE). Seeded well before tick 0 so
+      // the first cadence window fires once the player has a foothold.
+      lastIpccTick: -999,
+      // One-shot milestone flags. Scoring flips these the first time a
+      // threshold crosses, so the narrative beat fires once per game.
+      breached1_5: false,
     },
     world: {
       co2ppm: BALANCE.startingCO2ppm,
@@ -122,18 +137,34 @@ export function createState(homeCountryId, { seed } = {}) {
     },
     countries: Object.fromEntries(COUNTRIES.map(c => {
       const isHome = c.id === homeCountryId;
+      const baseline = FOREST_BASELINE[c.id] ?? 0.3;
+      const startingWill = Math.min(100, c.politicalWill + (isHome ? BALANCE.homePoliticalWillBonus : 0));
       return [c.id, {
         ...c,
         neighbors: NEIGHBORS[c.id] || [],
         adoption: startingAdoption(c),
         netZero: false,
-        politicalWill: Math.min(100, c.politicalWill + (isHome ? BALANCE.homePoliticalWillBonus : 0)),
+        politicalWill: startingWill,
         isHome,
         // Population: seed from data file. populationM is the authoritative
         // live number (mutated by PopulationSystem). populationDeltaM is the
         // most recent quarterly change — powers the ticker interpolation.
         populationM: c.populationM ?? 0,
         populationDeltaM: 0,
+        // Event-driven modifiers applied on top of intrinsic birth/death
+        // rates. PopulationSystem decays these back toward zero each tick
+        // unless flagged durable (Gen Z, carbon bank). Birth rate modifiers
+        // are additive to the rate (after the stress/anxiety multipliers);
+        // death rate modifiers are additive to the rate.
+        birthRateModifier: 0,
+        deathRateModifier: 0,
+        // Forestry: health starts at baseline (forest is intact on day one),
+        // and the government is a 2-slot incumbent/shadow pair — see
+        // model/Government.js. Tag distributions are biased by the country's
+        // infra + starting politicalWill.
+        forestBaseline: baseline,
+        forestHealth: baseline,
+        government: createGovernment({ ...c, politicalWill: startingWill }, initRng),
       }];
     })),
     activities: Object.fromEntries(ACTIVITIES.map(a => [a.id, { ...a }])),

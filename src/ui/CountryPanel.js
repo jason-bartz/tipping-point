@@ -12,6 +12,7 @@
 // projection* per card (cheap — ~O(activities × synergies)) and updates text.
 // A structural rebuild only happens on country change / research completion.
 
+import { BALANCE } from '../config/balance.js';
 import { EVT } from '../core/EventBus.js';
 import { BRANCHES, ACTIVITIES } from '../data/activities.js';
 import { rectFlag, isBlocFlag } from '../data/flags.js';
@@ -19,6 +20,13 @@ import { projectDeploy } from '../model/DeployEconomy.js';
 import { gate as politicalGate } from '../model/PoliticalGate.js';
 import { formatPopulationFull, formatDelta } from '../model/Population.js';
 import { showToast } from './Toast.js';
+
+const TAG_LABELS = { green: 'Climate hawk', mixed: 'Pragmatist', denier: 'Climate skeptic' };
+
+// Inline credits coin — used in cost chips, CTAs, and anywhere we'd otherwise
+// print the legacy "●" bullet. Kept as a constant so the asset path lives
+// in one place.
+const COIN = '<img class="credit-icon" src="/icons/credit.png" alt="" aria-hidden="true">';
 
 const BRANCH_EXPLAIN = {
   energy:    'Share of electricity and heat from clean sources.',
@@ -56,6 +64,11 @@ export class CountryPanel {
       if (activity?.branch) this._pulseSector(activity.branch);
     });
     bus.on(EVT.RESEARCH_DONE,     () => this._render()); // list changed
+    // Government fell — full re-render only if it's the country the player
+    // is looking at (incumbent/shadow names changed, badges change colors).
+    bus.on(EVT.GOVERNMENT_FELL,   (summary) => {
+      if (summary?.countryId === this.selectedId) this._render();
+    });
     bus.on(EVT.DEPLOY_FAILED,     (p) => this._onDeployFailed(p));
     this._render();
   }
@@ -81,9 +94,14 @@ export class CountryPanel {
   }
 
   _render() {
+    // Preserve scroll on structural rebuild — RESEARCH_DONE would otherwise
+    // snap the deploy list back to the top every time a new card appears,
+    // yanking the player away from whatever card they were reading.
+    const prevScrollEl = this.root.querySelector('.right-scroll');
+    const savedScroll = prevScrollEl ? prevScrollEl.scrollTop : 0;
+    const savedSector = this.selectedSector;
     if (!this.selectedId) {
-      this.root.innerHTML = `<div class="panel-title">Country</div>
-        <div class="right-scroll"><div class="empty">Click a country on the map to see its sectors and deploy clean tech there.</div></div>`;
+      this.root.innerHTML = `<div class="right-scroll"><div class="empty">Click a country on the map to see its sectors and deploy clean tech there.</div></div>`;
       return;
     }
     const c = this.state.countries[this.selectedId];
@@ -121,22 +139,20 @@ export class CountryPanel {
       : `<div class="empty">Nothing to deploy in ${BRANCHES[sector].label} yet. Research an activity in this branch to unlock deploys here.</div>`;
 
     this.root.innerHTML = `
-      <div class="panel-title">
-        <span>Country</span>
-        ${c.isHome ? '<span class="home-badge" title="Your home country. Deploys here cost 25% less.">HOME</span>' : ''}
-        <button class="panel-guide-toggle ${this._legendOpen ? 'active' : ''}" type="button" title="${this._legendOpen ? 'Hide' : 'Show'} quick guide" aria-label="Toggle quick guide" aria-pressed="${this._legendOpen}">?</button>
-      </div>
       <div class="country-header">
         <div class="country-name-row">
           ${rectFlag(c.id) ? `<img class="country-flag ${isBlocFlag(c.id) ? 'bloc' : ''}" src="${rectFlag(c.id)}" alt="" aria-hidden="true" />` : ''}
           <span class="country-name">${c.name}</span>
           ${c.netZero ? '<span class="nz-badge">NET ZERO</span>' : ''}
+          ${c.isHome ? '<span class="home-badge" title="Your home country. Deploys here cost 25% less.">HOME</span>' : ''}
+          <button class="panel-guide-toggle ${this._legendOpen ? 'active' : ''}" type="button" title="${this._legendOpen ? 'Hide' : 'Show'} quick guide" aria-label="Toggle quick guide" aria-pressed="${this._legendOpen}">?</button>
         </div>
         <div class="country-meta-row">
           <span class="cm-chip" title="Baseline annual emissions in gigatons of CO₂."><label>Emit</label><b class="cm-emit">${c.baseEmissionsGtCO2.toFixed(2)}</b></span>
           <span class="cm-chip" title="Political Will (0–100). Popular + governmental appetite for climate action."><label>Will</label><b class="cm-will">${c.politicalWill.toFixed(0)}</b></span>
           <span class="cm-chip cm-chip-pop" title="Live population. Natural demographics set the base rate; climate mortality pulls it down past +1.5°C."><label>Pop</label><b class="cm-pop">${formatPopulationFull(c.populationM)}</b><span class="country-pop-delta cm-pop-delta">${formatDelta((c.populationDeltaM ?? 0) * 4)}/yr</span></span>
         </div>
+        ${this._governmentHTML(c)}
       </div>
       <div class="sector-tabs" role="tablist" aria-label="Sector adoption — click to view deploys">${tabs}</div>
       <div class="right-scroll">
@@ -179,6 +195,13 @@ export class CountryPanel {
     });
 
     this._researchedSig = this._researchedKey();
+
+    // Restore scroll position if the sector is the same (otherwise the new
+    // view's natural top is correct). Always reset to top on sector switch.
+    if (savedSector === this.selectedSector && savedScroll > 0) {
+      const nextScrollEl = this.root.querySelector('.right-scroll');
+      if (nextScrollEl) nextScrollEl.scrollTop = savedScroll;
+    }
   }
 
   // Build the full deploy card. Always shows cost + effective yield. Adds
@@ -198,8 +221,8 @@ export class CountryPanel {
     const basePct   = Math.round(projection.baseYield * 100);
 
     const costBadge = projection.effectiveCost !== projection.baseCost
-      ? `<span class="deploy-btn-cost deploy-btn-cost-discounted" title="Base ${projection.baseCost} — synergies discounted this deploy">${projection.effectiveCost} ●</span>`
-      : `<span class="deploy-btn-cost">${projection.effectiveCost} ●</span>`;
+      ? `<span class="deploy-btn-cost deploy-btn-cost-discounted" title="Base ${projection.baseCost} — synergies discounted this deploy">${projection.effectiveCost} ${COIN}</span>`
+      : `<span class="deploy-btn-cost">${projection.effectiveCost} ${COIN}</span>`;
 
     // Effect row: "+8% Transport (was +15%, diminishing)" or "+15% Transport".
     const effectLine = projection.prevDeploys > 0
@@ -235,7 +258,7 @@ export class CountryPanel {
     // CTA text.
     let cta = 'Deploy';
     if (!gate.allowed) cta = `Locked`;
-    else if (!canAfford) cta = `Need ${projection.effectiveCost} ●`;
+    else if (!canAfford) cta = `Need ${projection.effectiveCost} ${COIN}`;
 
     // Tooltip summarizes the whole projection.
     const tip = [
@@ -261,6 +284,62 @@ export class CountryPanel {
         <span class="deploy-btn-cta">${cta}</span>
       </div>
     </button>`;
+  }
+
+  _governmentHTML(c) {
+    const g = c?.government;
+    if (!g) return '';
+    const inc = g.incumbent; const sh = g.shadow;
+    const cap = BALANCE.government.liabilityCap ?? 100;
+    const liabPct = Math.min(100, Math.max(0, (g.carbonLiability / cap) * 100));
+    const forestPct = Math.min(100, Math.max(0, ((c.forestHealth ?? 0) * 100)));
+    const baselinePct = Math.round((c.forestBaseline ?? 0) * 100);
+    const incTagLabel = TAG_LABELS[inc.tag] ?? inc.tag;
+    const shTagLabel  = TAG_LABELS[sh.tag]  ?? sh.tag;
+    const liabHot = liabPct >= 75 ? ' hot' : liabPct >= 50 ? ' warm' : '';
+    return `<div class="country-govt-row" aria-label="Government + forestry">
+      <div class="gov-bloc gov-incumbent" title="Current head of government. ${incTagLabel}. Accrues carbon liability when forests burn or degrade on their watch.">
+        <div class="gov-line"><span class="gov-role">In office</span> <span class="gov-tag gov-tag-${inc.tag}">${incTagLabel}</span></div>
+        <div class="gov-name">${inc.name}</div>
+      </div>
+      <div class="gov-bloc gov-shadow" title="Runner-up. Takes office if the incumbent falls.">
+        <div class="gov-line"><span class="gov-role">Next up</span> <span class="gov-tag gov-tag-${sh.tag}">${shTagLabel}</span></div>
+        <div class="gov-name">${sh.name}</div>
+      </div>
+      <div class="gov-bars">
+        <div class="gov-bar" title="Forest health — regenerates from Land adoption, decays under heat stress. Baseline ${baselinePct}% shown as the notch.">
+          <label>Forest</label>
+          <div class="gov-bar-track">
+            <span class="gov-bar-fill forest" style="width:${forestPct.toFixed(0)}%"></span>
+            <span class="gov-bar-notch" style="left:${baselinePct}%"></span>
+          </div>
+        </div>
+        <div class="gov-bar" title="Carbon liability — accrues under the current incumbent from forest loss + wildfires. At 100% the government falls and the shadow takes office.">
+          <label>Liability</label>
+          <div class="gov-bar-track">
+            <span class="gov-bar-fill liability${liabHot}" style="width:${liabPct.toFixed(0)}%"></span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  _patchGovernment(c) {
+    const g = c?.government;
+    if (!g) return;
+    const row = this.root.querySelector('.country-govt-row');
+    if (!row) return;
+    const cap = BALANCE.government.liabilityCap ?? 100;
+    const liabPct   = Math.min(100, Math.max(0, (g.carbonLiability / cap) * 100));
+    const forestPct = Math.min(100, Math.max(0, (c.forestHealth ?? 0) * 100));
+    const forestFill    = row.querySelector('.gov-bar-fill.forest');
+    const liabilityFill = row.querySelector('.gov-bar-fill.liability');
+    if (forestFill)    forestFill.style.width = `${forestPct.toFixed(0)}%`;
+    if (liabilityFill) {
+      liabilityFill.style.width = `${liabPct.toFixed(0)}%`;
+      liabilityFill.classList.toggle('warm', liabPct >= 50 && liabPct < 75);
+      liabilityFill.classList.toggle('hot',  liabPct >= 75);
+    }
   }
 
   _stageLabel(v) {
@@ -301,6 +380,7 @@ export class CountryPanel {
     if (emit) emit.textContent = c.baseEmissionsGtCO2.toFixed(2);
     const will = this.root.querySelector('.cm-will');
     if (will) will.textContent = c.politicalWill.toFixed(0);
+    this._patchGovernment(c);
 
     const pop = this.root.querySelector('.cm-pop');
     if (pop) pop.textContent = formatPopulationFull(c.populationM);
@@ -340,13 +420,13 @@ export class CountryPanel {
     btn.dataset.cap     = String(projection.maxPerPair);
 
     const costEl = btn.querySelector('.deploy-btn-cost');
-    if (costEl) costEl.textContent = `${projection.effectiveCost} ●`;
+    if (costEl) costEl.innerHTML = `${projection.effectiveCost} ${COIN}`;
 
     const ctaEl = btn.querySelector('.deploy-btn-cta');
     if (ctaEl) {
       if (capReached)         ctaEl.textContent = `Maxed (${projection.prevDeploys}/${projection.maxPerPair})`;
       else if (!gate.allowed) ctaEl.textContent = 'Locked';
-      else if (!canAfford)    ctaEl.textContent = `Need ${projection.effectiveCost} ●`;
+      else if (!canAfford)    ctaEl.innerHTML = `Need ${projection.effectiveCost} ${COIN}`;
       else if (projection.prevDeploys > 0) ctaEl.textContent = `Deploy (${projection.prevDeploys + 1}/${projection.maxPerPair})`;
       else                    ctaEl.textContent = 'Deploy';
     }

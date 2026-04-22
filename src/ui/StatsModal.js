@@ -4,11 +4,12 @@
 
 import { BALANCE } from '../config/balance.js';
 import { ACTIVITIES } from '../data/activities.js';
-import { formatPopulationFull, formatPopulationCompact, formatDelta } from '../model/Population.js';
+import { formatPopulationFull, formatPopulationCompact, formatDelta, effectiveBirthRate, effectiveDeathRate } from '../model/Population.js';
+import { select } from '../core/GameState.js';
 import { installModalA11y } from './modal-a11y.js';
 
 function sparkline(values, opts = {}) {
-  const { width = 260, height = 56, stroke = '#4ade80', fill = 'rgba(74,222,128,0.18)', minY, maxY } = opts;
+  const { width = 260, height = 56, stroke = 'var(--spark-adoption)', fill = 'var(--spark-adoption-fill)', minY, maxY } = opts;
   if (!values || values.length < 2) return `<div class="spark-empty">Collecting data…</div>`;
   const min = minY ?? Math.min(...values);
   const max = maxY ?? Math.max(...values);
@@ -78,44 +79,44 @@ export function showStatsModal(state) {
     modal.innerHTML = `<div class="stats-card" role="dialog" aria-label="World Stats">
       <div class="stats-head">
         <h2>World Stats <span class="stats-year">Q${state.meta.quarter} ${state.meta.year}</span></h2>
-        <button class="stats-close" title="Close (Esc or click outside)">✕</button>
+        <button class="stats-close" type="button" title="Close (Esc or click outside)" aria-label="Close stats">×</button>
       </div>
 
       <div class="stats-grid">
         <div class="stats-card-inner">
           <div class="stats-label">Temperature <span class="stats-peak">peak +${(w.peakTempAnomalyC ?? w.tempAnomalyC).toFixed(2)}°C</span></div>
           <div class="stats-big">+${w.tempAnomalyC.toFixed(2)}°C ${trendArrow(tempDelta, true, 0.005)}</div>
-          ${sparkline(w.tempHistory, { stroke: '#ef4444', fill: 'rgba(239,68,68,0.14)', minY: tempMin, maxY: tempMax })}
+          ${sparkline(w.tempHistory, { stroke: 'var(--spark-temp)', fill: 'var(--spark-temp-fill)', minY: tempMin, maxY: tempMax })}
           <div class="stats-range"><span>start +${BALANCE.startingTempAnomalyC.toFixed(1)}°C</span><span>loss +${BALANCE.lossTempC.toFixed(1)}°C</span></div>
         </div>
         <div class="stats-card-inner">
           <div class="stats-label">CO₂ <span class="stats-peak">peak ${(w.peakCO2ppm ?? w.co2ppm).toFixed(1)} ppm</span></div>
           <div class="stats-big">${w.co2ppm.toFixed(1)} ppm ${trendArrow(co2Delta, true, 0.1)}</div>
-          ${sparkline(w.co2History, { stroke: '#f59e0b', fill: 'rgba(245,158,11,0.14)', minY: co2Min, maxY: co2Max })}
+          ${sparkline(w.co2History, { stroke: 'var(--spark-co2)', fill: 'var(--spark-co2-fill)', minY: co2Min, maxY: co2Max })}
           <div class="stats-range"><span>pre-industrial 280</span><span>win ≤${BALANCE.winCO2ppm} ppm</span></div>
         </div>
         <div class="stats-card-inner">
           <div class="stats-label">Annual Emissions</div>
           <div class="stats-big">${w.annualEmissionsGtCO2.toFixed(1)} Gt/yr ${trendArrow(emDelta, true, 0.05)}</div>
-          ${sparkline(w.emissionsHistory, { stroke: '#b91c1c', fill: 'rgba(185,28,28,0.12)', minY: 0, maxY: emMax })}
+          ${sparkline(w.emissionsHistory, { stroke: 'var(--spark-emissions)', fill: 'var(--spark-emissions-fill)', minY: 0, maxY: emMax })}
           <div class="stats-range"><span>target: net zero</span><span>start 40 Gt</span></div>
         </div>
         <div class="stats-card-inner">
           <div class="stats-label">Global Clean Adoption</div>
           <div class="stats-big">${pctLabel(avgAdopt)} ${trendArrow(w.adoptionHistory.length >= 6 ? avgAdopt - w.adoptionHistory[Math.max(0, w.adoptionHistory.length - 6)] : 0, false, 0.002)}</div>
-          ${sparkline(w.adoptionHistory, { stroke: '#22c55e', fill: 'rgba(34,197,94,0.18)', minY: 0, maxY: 1 })}
+          ${sparkline(w.adoptionHistory, { stroke: 'var(--spark-adoption)', fill: 'var(--spark-adoption-fill)', minY: 0, maxY: 1 })}
           <div class="stats-range"><span>0%</span><span>Net Zero ≥ ${Math.round(BALANCE.netZeroThresholdAdoption*100)}%</span></div>
         </div>
         <div class="stats-card-inner">
           <div class="stats-label">Net Zero Countries</div>
           <div class="stats-big">${nz} / ${total} <span style="font-size:13px;color:var(--text-dim);font-weight:600">(${pctLabel(nz/total)})</span></div>
-          ${sparkline(w.nzHistory, { stroke: '#facc15', fill: 'rgba(250,204,21,0.2)', minY: 0, maxY: total })}
+          ${sparkline(w.nzHistory, { stroke: 'var(--spark-nz)', fill: 'var(--spark-nz-fill)', minY: 0, maxY: total })}
           <div class="stats-range"><span>0</span><span>win ≥${Math.round(BALANCE.winCountryNetZeroPct*100)}%</span></div>
         </div>
         <div class="stats-card-inner">
           <div class="stats-label">Political Will &amp; Stress</div>
           <div class="stats-big">Will ${avgWill.toFixed(0)} <span style="font-size:13px;color:var(--text-dim);font-weight:600">· Stress ${Math.round(w.societalStress)}</span></div>
-          ${sparkline(w.willHistory, { stroke: '#38bdf8', fill: 'rgba(56,189,248,0.18)', minY: 0, maxY: 100 })}
+          ${sparkline(w.willHistory, { stroke: 'var(--spark-will)', fill: 'var(--spark-will-fill)', minY: 0, maxY: 100 })}
           <div class="stats-range"><span>paralysis 0</span><span>momentum 100</span></div>
         </div>
 
@@ -129,13 +130,42 @@ export function showStatsModal(state) {
           const popMax = popHistory.length ? Math.max(...popHistory, currentPopM) : currentPopM;
           // Color the delta by sign so it reads at a glance.
           const deltaTone = annualDeltaM > 0.05 ? 'trend-down' : annualDeltaM < -0.05 ? 'trend-up' : 'trend-flat';
+          // Population-weighted world birth + death rates. These mirror what
+          // PopulationSystem feeds into each country's quarterly projection,
+          // so the numbers in the card are the numbers driving the sim.
+          const temp = w.tempAnomalyC;
+          const stress = w.societalStress ?? 0;
+          let totalPop = 0, birthSum = 0, deathSum = 0, intrinsicBirthSum = 0, intrinsicDeathSum = 0;
+          for (const c of countries) {
+            const p = c.populationM ?? 0;
+            if (p <= 0) continue;
+            const avgAdopt = select.avgAdoption(c);
+            totalPop += p;
+            birthSum += effectiveBirthRate(c, temp, stress) * p;
+            deathSum += effectiveDeathRate(c, temp, avgAdopt) * p;
+            intrinsicBirthSum += (c.birthRatePerYear ?? 0) * p;
+            intrinsicDeathSum += (c.deathRatePerYear ?? 0) * p;
+          }
+          const birthPer1k = totalPop ? (birthSum / totalPop) * 1000 : 0;
+          const deathPer1k = totalPop ? (deathSum / totalPop) * 1000 : 0;
+          const intrinsicBirthPer1k = totalPop ? (intrinsicBirthSum / totalPop) * 1000 : 0;
+          const intrinsicDeathPer1k = totalPop ? (intrinsicDeathSum / totalPop) * 1000 : 0;
+          // Compare to intrinsic so the player can see climate drag on the
+          // death side and stress/anxiety drag on the birth side.
+          const birthDelta = birthPer1k - intrinsicBirthPer1k;
+          const deathDelta = deathPer1k - intrinsicDeathPer1k;
+          const sign = (v) => v >= 0 ? '+' : '−';
+          const drift = (v) => `${sign(v)}${Math.abs(v).toFixed(2)}`;
           return `<div class="stats-card-inner">
             <div class="stats-label">Population <span class="stats-peak">peak ${formatPopulationCompact(peakPopM)}</span></div>
             <div class="stats-big">${formatPopulationFull(currentPopM)}
               <span class="trend-arrow ${deltaTone}" style="font-size:12px">${formatDelta(annualDeltaM)}/yr</span>
             </div>
-            ${sparkline(popHistory, { stroke: '#0ea5e9', fill: 'rgba(14,165,233,0.18)', minY: popMin, maxY: popMax })}
-            <div class="stats-range"><span>climate impact starts +1.5°C</span><span>shielded by adoption</span></div>
+            ${sparkline(popHistory, { stroke: 'var(--spark-population)', fill: 'var(--spark-population-fill)', minY: popMin, maxY: popMax })}
+            <div class="stats-range" title="Per-1000 crude rates, population-weighted. Drift vs intrinsic shows stress/anxiety drag on births and climate mortality on deaths.">
+              <span>Births ${birthPer1k.toFixed(1)}/1k <em style="font-style:normal;color:var(--text-dim)">(${drift(birthDelta)})</em></span>
+              <span>Deaths ${deathPer1k.toFixed(1)}/1k <em style="font-style:normal;color:var(--text-dim)">(${drift(deathDelta)})</em></span>
+            </div>
           </div>`;
         })()}
 
@@ -157,7 +187,7 @@ export function showStatsModal(state) {
           return `<div class="stats-card-inner">
             <div class="stats-label">Sea Level Rise <span class="stats-peak">committed ${peakSlr.toFixed(1)} cm</span></div>
             <div class="stats-big">${curSlr.toFixed(1)} cm</div>
-            ${sparkline(slrHistory, { stroke: '#0284c7', fill: 'rgba(2,132,199,0.18)', minY: slrMin, maxY: slrMax })}
+            ${sparkline(slrHistory, { stroke: 'var(--spark-slr)', fill: 'var(--spark-slr-fill)', minY: slrMin, maxY: slrMax })}
             <div class="stats-range"><span>pre-industrial 0</span><span>+4°C ≈ ${slrFromTemp(BALANCE.lossTempC).toFixed(0)} cm</span></div>
           </div>`;
         })()}
@@ -179,7 +209,7 @@ export function showStatsModal(state) {
           return `<div class="stats-card-inner">
             <div class="stats-label">CO₂ Avoided <span class="stats-peak">${perYear >= 0 ? '+' : ''}${perYear.toFixed(1)} Gt/yr</span></div>
             <div class="stats-big">${curAvoided.toFixed(1)} Gt ${trendArrow(recentDelta, false, 0.05)}</div>
-            ${sparkline(avoidedHistory, { stroke: '#10b981', fill: 'rgba(16,185,129,0.18)', minY: 0, maxY: avoidedMax })}
+            ${sparkline(avoidedHistory, { stroke: 'var(--spark-avoided)', fill: 'var(--spark-avoided-fill)', minY: 0, maxY: avoidedMax })}
             <div class="stats-range"><span>cumulative since start</span><span>vs. BAU baseline</span></div>
           </div>`;
         })()}
@@ -195,13 +225,13 @@ export function showStatsModal(state) {
         <div class="stats-col">
           <div class="stats-col-title">Top Adopters</div>
           <div class="stats-country-list">
-            ${topAdopters.map(row => countryRow(row, r => `${bar(r.avg, '#22c55e')}<span class="stats-adopt">${pctLabel(r.avg)}</span>`)).join('')}
+            ${topAdopters.map(row => countryRow(row, r => `${bar(r.avg, 'var(--spark-bar-good)')}<span class="stats-adopt">${pctLabel(r.avg)}</span>`)).join('')}
           </div>
         </div>
         <div class="stats-col">
           <div class="stats-col-title">Lagging</div>
           <div class="stats-country-list">
-            ${laggards.map(row => countryRow(row, r => `${bar(r.avg, '#ef4444')}<span class="stats-adopt">${pctLabel(r.avg)}</span>`)).join('')}
+            ${laggards.map(row => countryRow(row, r => `${bar(r.avg, 'var(--spark-bar-lag)')}<span class="stats-adopt">${pctLabel(r.avg)}</span>`)).join('')}
           </div>
         </div>
       </div>

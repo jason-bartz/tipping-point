@@ -11,6 +11,7 @@
 // there. Only a choice resolves the event; closing just hides the modal.
 
 import { installModalA11y } from './modal-a11y.js';
+import { EVT } from '../core/EventBus.js';
 
 function stancesHTML(stances) {
   if (!stances?.length) return '';
@@ -31,24 +32,46 @@ function stancesHTML(stances) {
   </div>`;
 }
 
-export function showEventModal(state, eventSystem) {
+export function showEventModal(state, eventSystem, bus) {
   const evt = state.activeEvents[0];
   if (!evt) return;
   if (document.querySelector('.modal')) return; // one at a time
 
   const modal = document.createElement('div');
   modal.className = 'modal';
+  const hasTimer = evt.expiresAtTick != null;
   modal.innerHTML = `<div class="modal-card event-modal-card" role="dialog" aria-label="${evt.title}">
     <button type="button" class="modal-close" aria-label="Close">×</button>
     <h2>${evt.title}</h2>
+    ${hasTimer ? `<div class="modal-timer" aria-live="polite"><span class="modal-timer-label">Decide within</span><span class="modal-timer-val"></span></div>` : ''}
     <p>${evt.headline}</p>
     ${stancesHTML(evt._advisorStances)}
     <div class="modal-choices">
       ${evt.choices.map((c, i) => `<button class="modal-choice" data-k="${c.key}" data-idx="${i}">${c.label}${c._advisorHint ? `<span class="modal-choice-hint">Backed by ${c._advisorHint}</span>` : ''}</button>`).join('')}
     </div>
-    <div class="modal-hint">The decision stays in your Dispatches — close to decide later.</div>
+    <div class="modal-hint">${hasTimer ? 'Close to decide later — but the clock keeps ticking.' : 'The decision stays in your Decisions tab — close to decide later.'}</div>
   </div>`;
   document.body.appendChild(modal);
+  document.body.classList.add('has-event-modal');
+  bus?.emit?.(EVT.EVENT_MODAL_STATE, { open: true, eventId: evt.id });
+
+  // Update the countdown each tick while the modal is open. Renders as
+  // "Decide within N quarters" — nothing fancy, just a visible clock.
+  const timerValEl = modal.querySelector('.modal-timer-val');
+  const renderTimer = () => {
+    if (!timerValEl) return;
+    const remaining = Math.max(0, (evt.expiresAtTick ?? 0) - state.meta.tick);
+    timerValEl.textContent = remaining === 1 ? '1 quarter' : `${remaining} quarters`;
+    const urgent = remaining <= 2;
+    modal.querySelector('.modal-timer')?.classList.toggle('urgent', urgent);
+  };
+  renderTimer();
+  const tickUnsub = bus?.on?.(EVT.TICK, renderTimer);
+  // Auto-close if this event expires under our feet. close() is defined
+  // below — we reference it via the variable hoisted into scope.
+  const expireUnsub = bus?.on?.(EVT.DECISION_EXPIRED, (p) => {
+    if (p?.eventId === evt.id) close(null);
+  });
 
   const choices = [...modal.querySelectorAll('.modal-choice')];
   let idx = 0;
@@ -57,7 +80,11 @@ export function showEventModal(state, eventSystem) {
 
   const close = (key) => {
     teardownA11y();
+    tickUnsub?.();
+    expireUnsub?.();
     modal.remove();
+    document.body.classList.remove('has-event-modal');
+    bus?.emit?.(EVT.EVENT_MODAL_STATE, { open: false, eventId: evt.id });
     document.removeEventListener('keydown', onKey);
     if (key) eventSystem.resolve(evt.id, key);
   };

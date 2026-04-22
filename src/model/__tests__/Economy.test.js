@@ -21,9 +21,9 @@ describe('incomePerTick', () => {
     expect(incomePerTick(mkState({ mod: { cpMult: 2 } }))).toBeCloseTo(BALANCE.baseCPPerTick * 2, 6);
   });
 
-  it('adds 0.4 per net-zero country', () => {
+  it('adds 0.25 per net-zero country', () => {
     const s = mkState({ countries: { A: { netZero: true }, B: { netZero: true }, C: { netZero: false } } });
-    expect(incomePerTick(s)).toBeCloseTo(BALANCE.baseCPPerTick + 0.8, 6);
+    expect(incomePerTick(s)).toBeCloseTo(BALANCE.baseCPPerTick + 0.5, 6);
   });
 });
 

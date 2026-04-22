@@ -15,6 +15,9 @@
 //     body:      string  — full text (can wrap)
 //     detail?:   string  — optional secondary line (e.g. effects summary)
 //     tone:      'good' | 'bad' | 'info' | 'flavor' | 'neutral'
+//     category?: 'unintended' — thematic tag for events where any path carries
+//                a backfire risk. Surfaces as a chip on the decision card so
+//                the player can see the pattern without reading every echo.
 //     read:      boolean — true once the player has opened the card
 //     needsAction: boolean — true while an interactive event is pending
 //     eventId?:  string  — links a 'decision' dispatch back to state.activeEvents
@@ -43,12 +46,14 @@ export const DISPATCH_FILTERS = [
   { id: 'milestone', label: 'Milestones' },
 ];
 
-let _idCounter = 0;
 function makeId(state) {
-  // Seeded part keeps ids stable-ish across saves; counter guarantees
-  // uniqueness within a session even if two dispatches land on one tick.
-  _idCounter = (_idCounter + 1) >>> 0;
-  return `d_${state.meta.tick}_${_idCounter.toString(36)}`;
+  // Counter lives on state.meta so it survives save / load. A module-level
+  // counter would reset to 0 on page reload, letting a resumed game emit an
+  // id (e.g. d_42_1) that collides with one already in the dispatches
+  // array from before the save. Monotonic across the entire run.
+  const next = ((state.meta.dispatchIdCounter ?? 0) + 1) >>> 0;
+  state.meta.dispatchIdCounter = next;
+  return `d_${state.meta.tick}_${next.toString(36)}`;
 }
 
 /**
@@ -70,9 +75,13 @@ export function logDispatch(state, bus, data) {
     body:    data.body  || '',
     detail:  data.detail || '',
     tone:    data.tone  || 'neutral',
+    category: data.category || null,
     read:    false,
     needsAction: !!data.needsAction,
-    eventId: data.eventId || null,
+    eventId:       data.eventId   || null,
+    advisorId:     data.advisorId || null,
+    expiresAtTick: data.expiresAtTick ?? null,
+    expired:       false,
   };
   state.meta.dispatches.unshift(record);
   _trim(state);
@@ -122,6 +131,22 @@ export function resolveDecisionDispatch(state, bus, eventId, choiceLabel, effect
   d.needsAction = false;
   d.read = true;
   d.detail = [`Chose: ${choiceLabel}`, effectsSummary].filter(Boolean).join(' · ');
+  bus?.emit(EVT.DISPATCH_UNREAD_CHANGED, { count: unreadCount(state) });
+  return d;
+}
+
+// Mark a pending-decision dispatch as expired (timed out). Same slot in the
+// log, same eventId — the row stays so the player can see what happened,
+// but flips from "awaiting you" to a bad-tone "expired" state with the
+// consequence summary baked into the detail line.
+export function expireDecisionDispatch(state, bus, eventId, effectsSummary) {
+  const d = state.meta.dispatches?.find(x => x.needsAction && x.eventId === eventId);
+  if (!d) return null;
+  d.needsAction = false;
+  d.expired = true;
+  d.tone = 'bad';
+  d.read = true;
+  d.detail = [`Did nothing — the moment passed.`, effectsSummary].filter(Boolean).join(' · ');
   bus?.emit(EVT.DISPATCH_UNREAD_CHANGED, { count: unreadCount(state) });
   return d;
 }

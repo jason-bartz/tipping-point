@@ -26,12 +26,15 @@ import { ScoringSystem } from './systems/ScoringSystem.js';
 import { CollectableSystem } from './systems/CollectableSystem.js';
 import { PopulationSystem } from './systems/PopulationSystem.js';
 import { AdvisorSystem } from './systems/AdvisorSystem.js';
+import { ForestrySystem } from './systems/ForestrySystem.js';
 import { MarineLifeSystem } from './systems/MarineLifeSystem.js';
+import { WildfireFx } from './ui/WildfireFx.js';
 
 import { HUD } from './ui/HUD.js';
 import { WorldMap } from './ui/WorldMap.js';
 import { ResearchTree } from './ui/ResearchTree.js';
 import { CountryPanel } from './ui/CountryPanel.js';
+import { LeftPanel } from './ui/LeftPanel.js';
 import { RightPanel } from './ui/RightPanel.js';
 import { DispatchesPanel } from './ui/DispatchesPanel.js';
 import { NewsFeed } from './ui/NewsFeed.js';
@@ -40,7 +43,6 @@ import { RecoveryBar } from './ui/RecoveryBar.js';
 import { CloudLayer } from './ui/CloudLayer.js';
 import { SmogPlumes } from './ui/SmogPlumes.js';
 import { CouncilPanel } from './ui/CouncilPanel.js';
-import { PauseOverlay } from './ui/PauseOverlay.js';
 import { installFloatingText, floatAt, teardownFloatingText } from './ui/FloatingText.js';
 import { installScreenShake, shakeScreen, teardownScreenShake } from './ui/ScreenShake.js';
 import { showToast } from './ui/Toast.js';
@@ -59,7 +61,7 @@ import { SoundBoard, bindSounds } from './audio/SoundBoard.js';
 import { MusicPlayer } from './audio/MusicPlayer.js';
 import { save, load, clearSave, installAutoSave, loadFromSlot } from './save/saveLoad.js';
 import { BALANCE } from './config/balance.js';
-import { logDispatch, resolveDecisionDispatch, pendingDecisionCount } from './model/Dispatches.js';
+import { logDispatch, resolveDecisionDispatch, expireDecisionDispatch } from './model/Dispatches.js';
 
 // ─── Top-level globals. Held in module scope so a "Play Again" click can tear
 // the running game down cleanly and rebuild. Keep this small — any state that
@@ -124,6 +126,9 @@ function startGame(state) {
   const scoring    = new ScoringSystem(state, bus);    void scoring;
   const advisors   = new AdvisorSystem(state, bus);
   events.setAdvisorSystem(advisors);
+  // Forestry + government. Ticks forest health + liability; hooks into
+  // EVENT_FIRED so wildfire-class events charge the sitting incumbent.
+  const forestry   = new ForestrySystem(state, bus);
 
   // UI
   let worldMap;
@@ -138,11 +143,10 @@ function startGame(state) {
   const ambience = new MapAmbience(mapContainer, state, bus);
   const recovery = new RecoveryBar(mapContainer, state, bus);
   const collectables = new CollectableSystem(state, bus, worldMap, mapContainer);
-  const council = new CouncilPanel(mapContainer, state, bus, advisors);
   const marineLife = new MarineLifeSystem(state, bus, worldMap);
+  const wildfireFx = new WildfireFx(state, bus, worldMap);
   const clouds = new CloudLayer(worldMap);
   const smogPlumes = new SmogPlumes(state, bus, worldMap);
-  const pauseOverlay = new PauseOverlay(mapContainer, state);
   installFloatingText();
   installScreenShake(document.getElementById('game'));
 
@@ -150,6 +154,28 @@ function startGame(state) {
   const music = ensureMusicPlayer();
   const soundUnsubs = bindSounds(board, bus);
   music.start();
+
+  // Delegated hover SFX — a soft sine blip on the buttons that matter
+  // (deploys, research nodes, sector tabs, modal choices, primary CTAs).
+  // Rate-limited so a fast cursor sweep doesn't stack into a buzz. Skipped
+  // on touch-only devices where hover is meaningless.
+  const HOVER_SELECTOR = '.deploy-btn:not([disabled]), .tree-node, .sector-tab, .modal-choice, .intro-cta, .starter-select-btn, .again, .end-share, .end-achievements, .rt-tab, .starter[data-id]';
+  let lastHoverAt = 0;
+  const onDelegatedHover = (e) => {
+    const target = e.target?.closest?.(HOVER_SELECTOR);
+    if (!target || target.hasAttribute('disabled')) return;
+    const now = performance.now();
+    if (now - lastHoverAt < 55) return;
+    lastHoverAt = now;
+    board.hover?.();
+  };
+  const hoverHost = document.getElementById('game');
+  const titleHost = document.getElementById('country-screen');
+  const canHover = !window.matchMedia?.('(hover: none)')?.matches;
+  if (canHover) {
+    hoverHost?.addEventListener('pointerover', onDelegatedHover);
+    titleHost?.addEventListener('pointerover', onDelegatedHover);
+  }
 
   const hud = new HUD(document.getElementById('hud-root'), state, bus, loop, {
     board,
@@ -173,7 +199,9 @@ function startGame(state) {
   // Badge the achievements button if carryover unreads exist from a prior run.
   ensureProgressSlot(state);
   if (readNew().size > 0) hud.markAchievementsNew?.();
-  const tree        = new ResearchTree(document.getElementById('left-panel'), state, bus, research, loop);
+  const leftPanel   = new LeftPanel(document.getElementById('left-panel'));
+  const tree        = new ResearchTree(leftPanel.mountPoint('research'), state, bus, research, loop);
+  const council     = new CouncilPanel(leftPanel.mountPoint('council'), state, bus, advisors);
   const rightPanel  = new RightPanel(document.getElementById('right-panel'), state, bus);
   const panel       = new CountryPanel(rightPanel.mountPoint('country'), state, bus, adoption);
   // Clicking "Decide" on a pending-decision dispatch opens the event modal.
@@ -181,33 +209,15 @@ function startGame(state) {
   // surfaces cleanly — but only if the player wasn't already reading
   // dispatches voluntarily. Simple heuristic: stay on dispatches.
   const dispatchesPanel = new DispatchesPanel(rightPanel.mountPoint('dispatches'), state, bus, {
-    onOpenDecision: () => showEventModal(state, events),
+    onOpenDecision: () => showEventModal(state, events, bus),
   });
   const feed  = new NewsFeed(document.getElementById('news-bar'), state, bus);
-  void hud; void tree; void panel; void rightPanel; void dispatchesPanel; void feed;
-
-  // Auto-pause helpers. Interactive events auto-pause the game so the
-  // player never misses a decision; on resolve we restore whatever speed
-  // state the player had before (don't resume a deliberately-paused game).
-  const autoPauseForDecision = () => {
-    if (state.meta.autoPausedForDecision) return;
-    state.meta.autoPausedForDecision = true;
-    state.meta._preAutoPausedState = !!state.meta.paused;
-    if (!state.meta.paused) { loop.setPaused(true); hud.syncSpeedUI?.(); }
-  };
-  const autoResumeIfDone = () => {
-    if (!state.meta.autoPausedForDecision) return;
-    if (pendingDecisionCount(state) > 0) return;
-    const wasPaused = state.meta._preAutoPausedState;
-    state.meta.autoPausedForDecision = false;
-    delete state.meta._preAutoPausedState;
-    if (wasPaused === false) { loop.setPaused(false); hud.syncSpeedUI?.(); }
-  };
+  void hud; void tree; void panel; void leftPanel; void rightPanel; void dispatchesPanel; void feed;
 
   // Event firing. Two flows now:
-  //   · Interactive events  → log as 'decision' dispatch (needsAction), auto-pause,
+  //   · Interactive events  → log as 'decision' dispatch (needsAction),
   //                           pulse the Dispatches tab, play the decision chime.
-  //                           No modal auto-open — the player chooses when to engage.
+  //                           Game keeps running — player engages when ready.
   //   · Passive events      → log as 'event' dispatch + a brief toast for the
   //                           immediate beat. Full text is always in the log.
   bus.on(EVT.EVENT_FIRED, (p) => {
@@ -231,13 +241,14 @@ function startGame(state) {
       logDispatch(state, bus, {
         kind: 'decision',
         tone: p.tone || 'neutral',
+        category: evt.category || null,
         title: evt.title || 'Decision',
         body: p.headline || '',
         detail: 'The council is waiting on you. Open to read the full situation and decide.',
         needsAction: true,
         eventId: evt.id,
+        expiresAtTick: evt.expiresAtTick ?? null,
       });
-      autoPauseForDecision();
       board.decision();
     } else {
       // Echoes are delayed consequences of past decisions — they're logged
@@ -273,14 +284,38 @@ function startGame(state) {
       title: 'Research Complete', body: p.activity.name,
     });
     shakeScreen('soft');
-    // Fanfare: spawn a radial burst from the left panel (where research lives).
+    // Fanfare: radial flash + 8 scatter particles from the completed node,
+    // if we can find it in the tree. Falls back to the panel centerpoint.
     const leftPanel = document.getElementById('left-panel');
-    if (leftPanel) {
-      const burst = document.createElement('div');
-      burst.className = 'gp-research-burst';
-      leftPanel.style.position = leftPanel.style.position || 'relative';
-      leftPanel.appendChild(burst);
-      setTimeout(() => burst.remove(), 800);
+    if (!leftPanel) return;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    leftPanel.style.position = leftPanel.style.position || 'relative';
+    const burst = document.createElement('div');
+    burst.className = 'gp-research-burst';
+    leftPanel.appendChild(burst);
+    setTimeout(() => burst.remove(), 800);
+    if (reducedMotion) return;
+    // Scatter particles — 8 pixel squares in a radial pattern, each with
+    // its own trajectory and rotation. Physics is done purely via CSS
+    // variables; the keyframe handles translate/rotate/fade.
+    const node = leftPanel.querySelector(`[data-id="${p.activity?.id}"]`) || leftPanel;
+    const anchor = node.getBoundingClientRect();
+    const pRoot = leftPanel.getBoundingClientRect();
+    const ox = anchor.left + anchor.width / 2 - pRoot.left;
+    const oy = anchor.top + anchor.height / 2 - pRoot.top;
+    for (let i = 0; i < 8; i++) {
+      const particle = document.createElement('span');
+      particle.className = 'gp-research-particle';
+      const angle = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const dist = 48 + Math.random() * 32;
+      const dx = Math.round(Math.cos(angle) * dist);
+      const dy = Math.round(Math.sin(angle) * dist - 20);
+      const color = ['#facc15', '#fde68a', '#fef3c7', '#fbbf24'][i % 4];
+      particle.style.cssText =
+        `left:${ox}px;top:${oy}px;background:${color};` +
+        `--dx:${dx}px;--dy:${dy}px;--rot:${Math.random() * 720 - 360}deg`;
+      leftPanel.appendChild(particle);
+      setTimeout(() => particle.remove(), 900);
     }
   });
   bus.on(EVT.COLLECTABLE_CLAIMED, (p) => {
@@ -290,6 +325,10 @@ function startGame(state) {
       const label = p.floatLabel || (typeof p.value === 'number' ? `+${p.value} ●` : p.title);
       floatAt({ x: p.clientX, y: p.clientY }, label, p.tone || 'good');
     }
+    // Pickup has weight now — soft shake for regular drops, thump for the
+    // rare Policy Breakthrough (tone 'good' + value ≥ 12 covers that case).
+    const big = typeof p?.value === 'number' && p.value >= 12;
+    shakeScreen(big ? 'thump' : 'soft');
   });
   // Deploy — float "+X% Branch" from the deploy button; spend cost floats as
   // a red "-Y ●" chip. Emits right after the model mutates, so the button's
@@ -315,7 +354,35 @@ function startGame(state) {
     const body = p.effectsSummary || 'Choice recorded.';
     showToast(`You chose: ${p.choiceLabel}`, body, p.tone || 'info');
     resolveDecisionDispatch(state, bus, p.eventId, p.choiceLabel, p.effectsSummary);
-    autoResumeIfDone();
+  });
+  // Decisions expire if the player doesn't act in time. Flip the pending
+  // dispatch to expired, toast the consequence, and shake the screen so
+  // the player feels the lapse.
+  bus.on(EVT.DECISION_EXPIRED, (p) => {
+    showToast(`Too late: ${p.title}`, p.effectsSummary || 'The moment passed.', 'bad');
+    expireDecisionDispatch(state, bus, p.eventId, p.effectsSummary);
+    shakeScreen('soft');
+    board.eventBad?.();
+  });
+  // Event modal state — dim the world (CSS via body.has-event-modal, toggled
+  // in EventModal.js) and duck the music so the decision carries weight.
+  bus.on(EVT.EVENT_MODAL_STATE, ({ open }) => {
+    if (open) music.duck(0.35, 0.35);
+    else      music.restore(0.7);
+  });
+
+  // Music tension — temperature drives a lowpass filter on the master bus,
+  // so as the world warms the soundtrack sounds increasingly distant and
+  // muffled. Starts at 1.8°C, saturates at 3.5°C. Checked every ~20 ticks
+  // (once every couple of quarters at 1×) since the filter glides smoothly.
+  let lastTensionTick = -999;
+  bus.on(EVT.TICK, () => {
+    const tick = state.meta.tick;
+    if (tick - lastTensionTick < 20) return;
+    lastTensionTick = tick;
+    const t = state.world.tempAnomalyC ?? 0;
+    const tension = Math.max(0, Math.min(1, (t - 1.8) / (3.5 - 1.8)));
+    music.setTension?.(tension);
   });
   bus.on(EVT.RESEARCH_FAILED, ({ reason, cost, activity }) => {
     const msg = {
@@ -326,7 +393,19 @@ function startGame(state) {
     }[reason];
     if (msg) showToast("Can't research", msg, 'bad');
   });
-  bus.on(EVT.WON,  (p) => { shakeScreen('thump'); showEndScreen(state, p, true,  { onAgain: returnToSelect }); });
+  bus.on(EVT.WON, (p) => {
+    // Ceremony: brief music swell (unduck past baseline for a beat, then
+    // settle), a bigger shake for perfect wins, and the end-card with
+    // confetti lands. Music fades out naturally on the teardown that
+    // returnToSelect triggers via loop.stop().
+    shakeScreen(p.perfect ? 'quake' : 'thump');
+    const original = music.baseVolume;
+    try {
+      music.setVolume(Math.min(1, original * 1.35));
+      setTimeout(() => music.setVolume(original), 2800);
+    } catch { /* ignore */ }
+    showEndScreen(state, p, true, { onAgain: returnToSelect });
+  });
   bus.on(EVT.LOST, (p) => { shakeScreen('quake'); showEndScreen(state, p, false, { onAgain: returnToSelect }); });
 
   // Advisor-board toasts — whispers are the only proactive interrupt; agenda
@@ -336,6 +415,7 @@ function startGame(state) {
     showToast(`${p.name}: warning`, p.text, 'bad');
     logDispatch(state, bus, {
       kind: 'advisor', tone: 'bad',
+      advisorId: p.id,
       title: `${p.name}: warning`, body: p.text,
     });
   });
@@ -346,7 +426,11 @@ function startGame(state) {
       const title = p.reward.title ?? `${seat.name} agenda complete`;
       const body  = p.reward.body ?? '';
       showToast(title, body, 'good');
-      logDispatch(state, bus, { kind: 'advisor', tone: 'good', title, body });
+      logDispatch(state, bus, {
+        kind: 'advisor', tone: 'good',
+        advisorId: p.id,
+        title, body,
+      });
     }
   });
   bus.on(EVT.ADVISOR_ABILITY_USED, (p) => {
@@ -354,7 +438,11 @@ function startGame(state) {
     if (!seat) return;
     const body = `${seat.title} used their signature ability.`;
     showToast(`${seat.name}`, body, 'good');
-    logDispatch(state, bus, { kind: 'advisor', tone: 'good', title: seat.name, body });
+    logDispatch(state, bus, {
+      kind: 'advisor', tone: 'good',
+      advisorId: p.id,
+      title: seat.name, body,
+    });
   });
   // Flavor news intentionally does NOT land in dispatches. The news ticker
   // is the home for those headlines; the dispatches log is reserved for
@@ -375,6 +463,7 @@ function startGame(state) {
   const removeKeys = installKeyboard(loop, {
     onHelp:  () => showTutorial({ state, pauseWhileOpen: true }),
     onStats: () => showStatsModal(state),
+    onSpeedChanged: () => hud.syncSpeedUI?.(),
     onAchievements: () => showAchievements({ state }),
     onSettings: () => showSettings({
       board, music, state,
@@ -450,20 +539,26 @@ function startGame(state) {
     collectables.destroy?.();
     council.destroy?.();
     advisors.destroy?.();
+    forestry.destroy?.();
     marineLife.destroy?.();
+    wildfireFx.destroy?.();
     clouds.destroy?.();
     smogPlumes.destroy?.();
-    pauseOverlay.destroy?.();
     teardownFloatingText();
     teardownScreenShake();
     worldMap.destroy?.();
     hud.destroy?.();
     tree.destroy?.();
+    leftPanel.destroy?.();
     population.destroy?.();
     feed.destroy?.();
     dispatchesPanel.destroy?.();
     rightPanel.destroy?.();
     soundUnsubs.forEach(u => u?.());
+    if (canHover) {
+      hoverHost?.removeEventListener('pointerover', onDelegatedHover);
+      titleHost?.removeEventListener('pointerover', onDelegatedHover);
+    }
     // Clear mounts.
     for (const id of ['hud-root', 'left-panel', 'right-panel', 'news-bar']) {
       const el = document.getElementById(id);
@@ -475,9 +570,10 @@ function startGame(state) {
   };
 }
 
-function newGame(homeCountryId) {
+function newGame(homeCountryId, { seed } = {}) {
   if (!homeCountryId || !COUNTRY_PROFILES[homeCountryId]) return;
-  const state = createState(homeCountryId);
+  const parsedSeed = seed != null && Number.isFinite(Number(seed)) ? (Number(seed) >>> 0) : undefined;
+  const state = createState(homeCountryId, { seed: parsedSeed });
   const profile = COUNTRY_PROFILES[homeCountryId];
   for (const id of profile.starter) state.world.researched.add(id);
   // Discard any prior save when starting a new run — the resume banner on
@@ -515,4 +611,14 @@ function returnToSelect() {
 
 // ─── Boot ────────────────────────────────────────────────────────────────
 applyAccessibilityFlags();
-renderCountrySelect({ onStart: newGame, onResume: resumeGame, onLoadSlot: loadSlot });
+// Replay-link support: ?country=DEU&seed=12345 starts that exact game. We
+// clear the URL after so the user can Play Again without re-triggering it.
+const params = new URLSearchParams(window.location.search);
+const urlCountry = params.get('country');
+const urlSeed = params.get('seed');
+if (urlCountry && COUNTRY_PROFILES[urlCountry]) {
+  try { history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
+  newGame(urlCountry, { seed: urlSeed });
+} else {
+  renderCountrySelect({ onStart: newGame, onResume: resumeGame, onLoadSlot: loadSlot });
+}

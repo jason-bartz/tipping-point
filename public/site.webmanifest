@@ -1,0 +1,33 @@
+{
+  "name": "Tipping Point",
+  "short_name": "Tipping Point",
+  "description": "A climate strategy game. Race to decarbonize the planet before +4°C.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#5cb3d6",
+  "theme_color": "#5cb3d6",
+  "lang": "en",
+  "categories": ["games", "education", "strategy"],
+  "icons": [
+    {
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

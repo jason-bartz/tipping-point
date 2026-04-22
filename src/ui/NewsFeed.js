@@ -1,16 +1,11 @@
 // Scrolling news ticker. Continuous RAF marquee; new items append to the
 // tail so incoming news never resets position. Items that fully scroll past
-// the left edge are removed to cap DOM growth.
-//
-// Hover-pause: when the pointer (or keyboard focus) enters the viewport,
-// the marquee freezes so the player can read whatever is on screen. A
-// "PAUSED" chip in the corner confirms the interaction. Every news item is
-// also captured in the dispatches log, so nothing is ever truly lost — the
-// ticker is ambient flavor, the log is the record of truth.
+// the left edge are removed to cap DOM growth. Every news item is also
+// captured in the dispatches log, so the ticker stays purely ambient.
 
 import { EVT } from '../core/EventBus.js';
 
-const DEFAULT_SPEED_PX_PER_SEC = 14;
+const DEFAULT_SPEED_PX_PER_SEC = 30;
 const MAX_DT_SEC = 0.1;
 
 export class NewsFeed {
@@ -22,41 +17,29 @@ export class NewsFeed {
     this.offset = 0;
     this.lastT = 0;
     this.raf = null;
-    this.paused = false;
 
     this.root.innerHTML =
       `<div class="news-label">LIVE</div>
-       <div class="news-viewport" tabindex="0" aria-label="News ticker. Hover or focus to pause.">
+       <div class="news-viewport" aria-label="News ticker">
          <div class="news-scroll"></div>
-         <div class="news-paused-chip" aria-hidden="true">PAUSED</div>
        </div>`;
+    this.label = this.root.querySelector('.news-label');
     this.viewport = this.root.querySelector('.news-viewport');
     this.scroll = this.root.querySelector('.news-scroll');
+    this._breakingFlashTimer = null;
+    this._shownIds = new Set();
 
     for (const item of [...this.state.news].reverse()) this._append(item);
-    this._topUp();
-
-    this._onEnter = () => this._setPaused(true);
-    this._onLeave = () => this._setPaused(false);
-    this.viewport.addEventListener('mouseenter', this._onEnter);
-    this.viewport.addEventListener('mouseleave', this._onLeave);
-    this.viewport.addEventListener('focus',      this._onEnter);
-    this.viewport.addEventListener('blur',       this._onLeave);
 
     this._unsub = this.bus.on(EVT.NEWS, (item) => this._append(item));
     this._frame = this._frame.bind(this);
     this.raf = requestAnimationFrame(this._frame);
   }
 
-  _setPaused(v) {
-    this.paused = !!v;
-    this.root.classList.toggle('news-paused', this.paused);
-    // Reset lastT so a long pause doesn't dump a big dt on resume.
-    if (!this.paused) this.lastT = 0;
-  }
-
   _append(item) {
     if (!item || !item.text) return;
+    if (item.id && this._shownIds.has(item.id)) return;
+    if (item.id) this._shownIds.add(item.id);
     const el = document.createElement('span');
     el.className = `news-item tone-${item.tone || 'flavor'}`;
     el.innerHTML = `<span class="news-date">${item.date}</span> ${item.text}`;
@@ -65,27 +48,33 @@ export class NewsFeed {
     sep.innerHTML = '&nbsp;&nbsp;•&nbsp;&nbsp;';
     this.scroll.appendChild(el);
     this.scroll.appendChild(sep);
+    if (item.tone === 'breaking') this._flashBreaking();
+  }
+
+  // Flip the LIVE chip to "BREAKING" and pulse red for ~5 s, long enough for
+  // the headline to traverse a good chunk of the viewport. Consecutive
+  // breakings extend the timer instead of stacking.
+  _flashBreaking() {
+    if (!this.label) return;
+    this.label.textContent = 'BREAKING';
+    this.label.classList.add('news-label-breaking');
+    clearTimeout(this._breakingFlashTimer);
+    this._breakingFlashTimer = setTimeout(() => {
+      this.label.textContent = 'LIVE';
+      this.label.classList.remove('news-label-breaking');
+    }, 5000);
   }
 
   _topUp() {
-    const vpRect = this.viewport.getBoundingClientRect();
-    const vpW = vpRect.width || 600;
-    let guard = 0;
-    while (guard < 30) {
-      const scrollRight = this.scroll.getBoundingClientRect().right;
-      if (scrollRight - vpRect.right >= vpW * 1.5) break;
-      const recent = this.state.news.slice(0, 20);
-      if (!recent.length) break;
-      for (const item of recent) this._append(item);
-      guard++;
+    const unshown = [];
+    for (const item of this.state.news) {
+      if (item.id && !this._shownIds.has(item.id)) unshown.push(item);
     }
+    unshown.reverse();
+    for (const item of unshown) this._append(item);
   }
 
   _frame(t) {
-    if (this.paused) {
-      this.raf = requestAnimationFrame(this._frame);
-      return;
-    }
     if (!this.lastT) this.lastT = t;
     const dt = Math.min(MAX_DT_SEC, (t - this.lastT) / 1000);
     this.lastT = t;
@@ -113,9 +102,5 @@ export class NewsFeed {
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = null;
     this._unsub?.();
-    this.viewport?.removeEventListener('mouseenter', this._onEnter);
-    this.viewport?.removeEventListener('mouseleave', this._onLeave);
-    this.viewport?.removeEventListener('focus',      this._onEnter);
-    this.viewport?.removeEventListener('blur',       this._onLeave);
   }
 }

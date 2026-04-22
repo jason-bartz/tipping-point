@@ -16,6 +16,7 @@
 
 import { EVT } from '../core/EventBus.js';
 import { BALANCE } from '../config/balance.js';
+import { mulberry32 } from '../core/Random.js';
 
 const ATLAS_URL = '/tilesets/PixelCreatures.png';
 const MAP_URL   = '/world-map.png';
@@ -71,6 +72,12 @@ export class MarineLifeSystem {
     this.mask = null;
     this.atlas = null;
     this.targetCount = 0;
+
+    // Private cosmetic rng. Seeded from the game seed + a fixed salt so
+    // different runs get different creature behavior but a single run is
+    // deterministic on RAF cadence. Kept separate from state.meta.rng so
+    // animation draws don't pollute gameplay rolls.
+    this._rng = mulberry32(((state?.meta?.seed ?? 0) ^ 0xC7EA7E12) >>> 0);
 
     this.reducedMotion =
       typeof window !== 'undefined' &&
@@ -298,7 +305,11 @@ export class MarineLifeSystem {
         if (c.retired) { this.creatures.splice(i, 1); continue; }
         if (c.stateTime >= c.stateDuration) {
           this._reposition(c);
-          c.facing = Math.random() < 0.5 ? -1 : 1;
+          // Cosmetic-only; use our own rng stream (seeded from the game
+          // seed) instead of the gameplay rng — animation frames fire
+          // asynchronously from ticks, so pulling from the game stream would
+          // desynchronize event/collectable rolls.
+          c.facing = this._rng() < 0.5 ? -1 : 1;
           this._enterState(c, 'rising');
         }
         continue;

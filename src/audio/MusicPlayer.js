@@ -65,7 +65,8 @@ export class MusicPlayer {
     try { localStorage.setItem(MUSIC_VOL_KEY, String(clamped)); } catch { /* ignore */ }
     if (!this.ctx || !this.master) return;
     const t = this.ctx.currentTime;
-    const target = this.muted ? 0 : this.baseVolume;
+    const duck = this._duckFactor ?? 1;
+    const target = this.muted ? 0 : this.baseVolume * duck;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setValueAtTime(this.master.gain.value, t);
     this.master.gain.linearRampToValueAtTime(target, t + 0.15);
@@ -77,13 +78,59 @@ export class MusicPlayer {
     if (!AC) return null;
     try {
       this.ctx = new AC();
+      // Signal chain: sources → master (gain) → tension (lowpass) → destination.
+      // Master is the published volume / mute surface; the tension filter
+      // sits between master and destination so we can muffle the mix when
+      // the world is in crisis without touching the volume the user set.
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : this.baseVolume;
-      this.master.connect(this.ctx.destination);
+      this.tension = this.ctx.createBiquadFilter();
+      this.tension.type = 'lowpass';
+      this.tension.frequency.value = 20000;  // transparent by default
+      this.tension.Q.value = 0.7;
+      this.master.connect(this.tension).connect(this.ctx.destination);
+      this._duckFactor = 1;   // modal-duck multiplier, 0..1
     } catch {
       this.ctx = null;
     }
     return this.ctx;
+  }
+
+  // Temporarily pull master gain down to `factor * baseVolume` over `sec`
+  // seconds. Used when an event modal opens — the music recedes so the
+  // decision feels weighty. `restore()` brings it back.
+  duck(factor = 0.4, sec = 0.35) {
+    this._duckFactor = Math.max(0, Math.min(1, factor));
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const target = this.muted ? 0 : this.baseVolume * this._duckFactor;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(this.master.gain.value, t);
+    this.master.gain.linearRampToValueAtTime(target, t + sec);
+  }
+
+  restore(sec = 0.6) {
+    this._duckFactor = 1;
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const target = this.muted ? 0 : this.baseVolume;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(this.master.gain.value, t);
+    this.master.gain.linearRampToValueAtTime(target, t + sec);
+  }
+
+  // Mix tension — 0 = transparent, 1 = heavily muffled (as if the music is
+  // being heard through a wall). Smoothly glides the lowpass cutoff.
+  // Anchored by CarbonSystem state in main.js.
+  setTension(level = 0) {
+    const clamped = Math.max(0, Math.min(1, Number(level) || 0));
+    if (!this.ctx || !this.tension) return;
+    // Cutoff glides exponentially — 20000 (open) → 900 (closed).
+    const cutoff = Math.max(600, 20000 * Math.pow(0.045, clamped));
+    const t = this.ctx.currentTime;
+    this.tension.frequency.cancelScheduledValues(t);
+    this.tension.frequency.setValueAtTime(this.tension.frequency.value, t);
+    this.tension.frequency.exponentialRampToValueAtTime(cutoff, t + 2.0);
   }
 
   async _loadBuffer(url) {
@@ -143,8 +190,9 @@ export class MusicPlayer {
     // If a prior stop() left the master faded to zero, lift it back now so
     // the per-source envelopes aren't masked.
     const t0 = ctx.currentTime;
+    const duck = this._duckFactor ?? 1;
     this.master.gain.cancelScheduledValues(t0);
-    this.master.gain.setValueAtTime(this.muted ? 0 : this.baseVolume, t0);
+    this.master.gain.setValueAtTime(this.muted ? 0 : this.baseVolume * duck, t0);
 
     this.playing = true;
 
@@ -225,7 +273,8 @@ export class MusicPlayer {
     try { localStorage.setItem(MUTE_KEY, this.muted ? '1' : '0'); } catch { /* ignore */ }
     if (!this.ctx || !this.master) return;
     const t = this.ctx.currentTime;
-    const target = this.muted ? 0 : this.baseVolume;
+    const duck = this._duckFactor ?? 1;
+    const target = this.muted ? 0 : this.baseVolume * duck;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setValueAtTime(this.master.gain.value, t);
     this.master.gain.linearRampToValueAtTime(target, t + 0.25);

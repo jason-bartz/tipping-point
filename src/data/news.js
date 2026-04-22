@@ -205,4 +205,13 @@ export const NEWS_POOL = [
   // ─── Time-based color — late-game inflections.
   (s) => s.meta.year >= 2040 && s.meta.year < 2050 ? `It's ${s.meta.year}. Under-30s don't remember a pre-climate politics.` : null,
   (s) => s.meta.year >= 2050 ? `${s.meta.year}: the climate bills of 2030 now read like common sense. Historians note the lag.` : null,
+
+  // ─── Seasonal — Santa switches to biochar. Q4 only, so the joke lands when
+  // the northern hemisphere is actually staring down a chimney.
+  (s) => s.meta.quarter === 4
+    ? "Santa switches from coal to biochar. Naughty list reviewers note the upgrade is 'carbon-negative, too.'"
+    : null,
+
+  // His Majesty the King flies carbon neutral (evergreen; the palace PR is always on).
+  "His Majesty the King's state visit logs net-zero flight emissions. Republicans note the precedent; monarchists note the math.",
 ];

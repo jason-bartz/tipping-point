@@ -173,12 +173,19 @@ export class AdvisorSystem {
         // flag there). For now, top up a pending spawn count.
         s.advisors._pendingSpawn = (s.advisors._pendingSpawn || 0) + (reward.count ?? 1);
         break;
-      case 'deployDiscount':
+      case 'deployDiscount': {
+        // Stacking: count is additive (every reward extends the window),
+        // pct takes the higher of current/new so a stronger deal doesn't
+        // get diluted by a weaker one overlapping it. Mirrors freeDeploys
+        // (below), which also adds. Without this, a second reward granted
+        // while a window is open was silently swallowed by Math.max(count).
+        const cur = s.advisors.deployDiscount ?? { pct: 0, count: 0 };
         s.advisors.deployDiscount = {
-          pct: Math.max(s.advisors.deployDiscount?.pct ?? 0, reward.value ?? 0.2),
-          count: Math.max(s.advisors.deployDiscount?.count ?? 0, reward.count ?? 3),
+          pct:   Math.max(cur.pct, reward.value ?? 0.2),
+          count: (cur.count ?? 0) + (reward.count ?? 3),
         };
         break;
+      }
       case 'adoptionBoost': {
         const c = s.countries[s.meta.homeCountryId];
         if (!c) break;

@@ -242,9 +242,14 @@ export class SmogPlumes {
 
     for (const p of this.plumes.values()) {
       if (p.opacity <= 0.01) continue;
+      // Slow east-west pendulum so plumes visibly drift across the map
+      // instead of wobbling in place. Half-cycle ≈ 35 s. Per-plume phase
+      // keeps the set out of sync, so the whole world feels alive, not
+      // like one synchronized animation.
+      const driftU = Math.sin(now * 0.00018 + p.wobblePhase) * 0.018;
       const wobbleX = Math.sin(now * 0.0004 + p.wobblePhase) * 0.004;
       const wobbleY = Math.sin(now * 0.0003 + p.wobblePhase * 1.3) * 0.002;
-      const u = p.anchorU + wobbleX;
+      const u = p.anchorU + wobbleX + driftU;
       const v = p.anchorV + wobbleY;
       const dw = Math.round(p.rect.sw * p.scale);
       const dh = Math.round(p.rect.sh * p.scale);

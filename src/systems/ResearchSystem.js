@@ -4,7 +4,7 @@
 // researched set. Player also earns base CP per tick (plus a Net-Zero bonus).
 
 import { EVT } from '../core/EventBus.js';
-import { researchCost, incomePerTick } from '../model/Economy.js';
+import { researchCost, incomePerTick, researchTicksFor } from '../model/Economy.js';
 
 export class ResearchSystem {
   constructor(state, bus, mod) {
@@ -57,8 +57,7 @@ export class ResearchSystem {
     if (s.world.climatePoints < cost)                 return this._fail({ activity: a, reason: 'insufficient_cp', cost });
 
     s.world.climatePoints -= cost;
-    const baseTicks = a.researchTicks ?? 4;
-    const ticks = Math.max(1, Math.round(baseTicks * (this.mod?.researchMult ?? 1)));
+    const ticks = researchTicksFor(a, this.mod);
     s.world.activeResearch[a.branch] = { id: a.id, ticksRemaining: ticks, totalTicks: ticks };
     this.bus.emit(EVT.RESEARCH_STARTED, { activity: a, ticks });
     return { ok: true, cost, ticks };
