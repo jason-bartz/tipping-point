@@ -26,6 +26,7 @@ export default defineConfig({
         'src/data/news.js',         // declarative blob
         'src/data/collectables.js', // declarative blob
         'src/data/advisors.js',     // declarative blob
+        'src/data/achievements.js', // declarative blob
       ],
       // Ratchets. Raise over time; don't let them slip.
       thresholds: {
