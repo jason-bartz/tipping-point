@@ -79,7 +79,7 @@ export const ACHIEVEMENTS = [
   {
     id: 'decisive',
     title: 'Decisive',
-    desc: 'Resolve 25 council decisions in a single run.',
+    desc: 'Resolve 25 decisions in a single run.',
     icon: `${ICON_BASE}/decisive.svg`,
     tint: '#7c3aed',
   },

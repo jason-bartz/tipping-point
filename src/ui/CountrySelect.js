@@ -49,8 +49,9 @@ export function renderCountrySelect({ onStart, onResume, onLoadSlot } = {}) {
   const screen = document.getElementById('country-screen');
   if (screen) screen.style.setProperty('background-image', `url('${WALLPAPER_URL}')`, 'important');
 
-  // If a save exists, skip straight to the picker so Resume is one click away.
-  let stage = hasSave() ? STAGE_PICK : STAGE_INTRO;
+  // Always open to the title screen; the intro itself surfaces a Resume button
+  // when a save exists, so no need to bypass it.
+  let stage = STAGE_INTRO;
   let openModal = null;
 
   function render() {

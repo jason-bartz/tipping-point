@@ -27,6 +27,7 @@ import { COUNTRIES, FOREST_BASELINE } from '../data/countries.js';
 import { ADVISOR_IDS } from '../data/advisors.js';
 import { resolveAdvisor } from '../model/Advisors.js';
 import { createGovernment } from '../model/Government.js';
+import { ensureBiodiversity } from '../systems/SpeciesSystem.js';
 import { captureError } from '../telemetry/sentry.js';
 
 const STORAGE_KEY = 'tipping-point.save.v1';
@@ -212,6 +213,14 @@ export function deserialize(blob) {
   // Collectables have DOM-coupled lifetime tracking; drop them on load and
   // let CollectableSystem respawn fresh ones.
   s.collectables = [];
+  // Biodiversity slice arrived after v2. Back-fill with fresh baseline
+  // statuses so old saves start the roster intact at resume — losing real
+  // species history from before the feature existed is the right trade vs.
+  // pretending extinctions happened that the player never saw.
+  ensureBiodiversity(s);
+  // Queue is transient — drop any pending announcements on resume so the
+  // ticker doesn't spill stale beats from a pre-save-moment scan.
+  s.biodiversity.queue = [];
   // Advisory Board back-fill (v0.5+). Older saves predate the board — rebuild
   // a fresh slice so the UI mounts cleanly. Newer saves round-trip as-is but
   // drop transient spawn buffers.

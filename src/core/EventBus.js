@@ -81,4 +81,13 @@ export const EVT = {
   GOVERNMENT_FELL: 'governmentFell',
   WON: 'won',
   LOST: 'lost',
+  // Biodiversity pipeline. SpeciesSystem ticks population health against
+  // temperature and emits these as species cross IUCN status thresholds.
+  // NewsSystem converts them into headlines; significant transitions (EX, EW,
+  // rediscovery) also log to the dispatches feed. Payload shape is consistent
+  // across the three: { def, prevStatus, nextStatus } — `def` is the static
+  // species record from data/species.js, status strings are IUCN codes.
+  SPECIES_STATUS_CHANGED: 'speciesStatusChanged',
+  SPECIES_EXTINCT: 'speciesExtinct',
+  SPECIES_REDISCOVERED: 'speciesRediscovered',
 };

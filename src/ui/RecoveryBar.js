@@ -57,7 +57,6 @@ export class RecoveryBar {
 
     this.marker.style.left = `${pctNum}%`;
     this.markerPct.textContent = `${pctNum}%`;
-    this.root.classList.toggle('recovery-at-risk', pctNum < 35);
     this.root.classList.toggle('recovery-winning', pctNum >= 90);
 
     const nz = Math.round(nzPct * 100);

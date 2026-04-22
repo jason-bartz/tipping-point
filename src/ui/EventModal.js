@@ -2,7 +2,7 @@
 // navigation + Enter to confirm make it keyboard-friendly.
 //
 // Advisor-conflict events carry an `_advisorStances` array, which surfaces
-// a separate "The council weighs in" panel between the headline and the
+// a separate "The advisors weigh in" panel between the headline and the
 // choices so the decision text leads and advisor positions are clearly
 // attributed.
 //
@@ -12,6 +12,7 @@
 
 import { installModalA11y } from './modal-a11y.js';
 import { EVT } from '../core/EventBus.js';
+import { formatSeconds } from '../systems/helpers.js';
 
 function stancesHTML(stances) {
   if (!stances?.length) return '';
@@ -26,8 +27,8 @@ function stancesHTML(stances) {
         <span class="advisor-stance-quote">“${s.stance}”</span>
       </span>
     </div>`).join('');
-  return `<div class="advisor-stance-block" aria-label="The council weighs in">
-    <div class="advisor-stance-head">The council weighs in</div>
+  return `<div class="advisor-stance-block" aria-label="The advisors weigh in">
+    <div class="advisor-stance-head">The advisors weigh in</div>
     ${rows}
   </div>`;
 }
@@ -56,12 +57,12 @@ export function showEventModal(state, eventSystem, bus) {
   bus?.emit?.(EVT.EVENT_MODAL_STATE, { open: true, eventId: evt.id });
 
   // Update the countdown each tick while the modal is open. Renders as
-  // "Decide within N quarters" — nothing fancy, just a visible clock.
+  // real-world seconds ("18s", "1m 30s") — matches the research tree clock.
   const timerValEl = modal.querySelector('.modal-timer-val');
   const renderTimer = () => {
     if (!timerValEl) return;
     const remaining = Math.max(0, (evt.expiresAtTick ?? 0) - state.meta.tick);
-    timerValEl.textContent = remaining === 1 ? '1 quarter' : `${remaining} quarters`;
+    timerValEl.textContent = formatSeconds(remaining, state);
     const urgent = remaining <= 2;
     modal.querySelector('.modal-timer')?.classList.toggle('urgent', urgent);
   };

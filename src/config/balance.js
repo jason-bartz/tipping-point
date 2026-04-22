@@ -75,7 +75,7 @@ export const BALANCE = {
   // Decision timeout. An interactive event that's been pending this many
   // ticks auto-expires — inaction is a choice and it costs you. Individual
   // events can override with `timeoutTicks` on their def.
-  decisionTimeoutTicks: 6,            // ~1.5 in-game years at 4 ticks/year
+  decisionTimeoutTicks: 12,           // ~3 in-game years at 4 ticks/year
 
   // Default penalty when a decision expires without a choice. Stackable —
   // author events can add `onExpire` effects that run *instead of* these.

@@ -4,13 +4,14 @@
 //
 // Event / research / advisor / milestone dispatches still hit the log via
 // logDispatch so the state keeps a full history, but they don't surface
-// here. Advisor comments are attributed per-seat in the Council tab.
+// here. Advisor comments are attributed per-seat in the Advisors tab.
 
 import { EVT } from '../core/EventBus.js';
 import {
   markRead,
   pendingDecisionCount,
 } from '../model/Dispatches.js';
+import { formatSeconds } from '../systems/helpers.js';
 
 export class DispatchesPanel {
   constructor(root, state, bus, { onOpenDecision } = {}) {
@@ -77,7 +78,7 @@ export class DispatchesPanel {
 
     const arr = this._decisions();
     if (!arr.length) {
-      this.listEl.innerHTML = `<div class="dispatch-empty">No decisions to make right now. When the council needs your call, it'll land here.</div>`;
+      this.listEl.innerHTML = `<div class="dispatch-empty">No decisions to make right now. When the advisors need your call, it'll land here.</div>`;
       return;
     }
 
@@ -140,14 +141,14 @@ export class DispatchesPanel {
     const actionLabel = d.needsAction ? 'Decide' : (isExpanded ? 'Collapse' : 'Expand');
     const actionCls   = d.needsAction ? 'dispatch-action action-decide' : 'dispatch-action';
     const pendingDot = d.needsAction ? `<span class="dispatch-pending-dot" aria-label="Awaiting decision"></span>` : '';
-    // Countdown chip on pending decisions. Turns urgent within 2 quarters
+    // Countdown chip on pending decisions. Turns urgent within 2 ticks
     // of expiry, and disappears when the decision is answered or expired.
     let timerChip = '';
     if (d.needsAction && d.expiresAtTick != null) {
       const remaining = Math.max(0, d.expiresAtTick - this.state.meta.tick);
       const urgent = remaining <= 2;
-      const label = remaining === 1 ? '1q left' : `${remaining}q left`;
-      timerChip = `<span class="dispatch-timer ${urgent ? 'urgent' : ''}" title="Quarters until this decision expires with consequences">${label}</span>`;
+      const label = `${formatSeconds(remaining, this.state)} left`;
+      timerChip = `<span class="dispatch-timer ${urgent ? 'urgent' : ''}" title="Time until this decision expires with consequences">${label}</span>`;
     } else if (d.expired) {
       timerChip = `<span class="dispatch-timer expired" title="This decision ran out of time">Expired</span>`;
     }

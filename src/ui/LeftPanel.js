@@ -1,12 +1,12 @@
 // Left-panel host. Owns the tab strip that switches between the Research
-// tree and the Council (advisor board). Mirrors RightPanel's shape so the
-// two sidebars read as a matched pair.
+// tree and the Advisors board. Mirrors RightPanel's shape so the two
+// sidebars read as a matched pair.
 //
 // Keeping this thin on purpose — it's a router, not a presenter.
 
 const TABS = [
   { id: 'research', label: 'Research' },
-  { id: 'council',  label: 'Council'  },
+  { id: 'council',  label: 'Advisors' },
 ];
 
 export class LeftPanel {

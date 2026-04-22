@@ -28,6 +28,7 @@ import { PopulationSystem } from './systems/PopulationSystem.js';
 import { AdvisorSystem } from './systems/AdvisorSystem.js';
 import { ForestrySystem } from './systems/ForestrySystem.js';
 import { MarineLifeSystem } from './systems/MarineLifeSystem.js';
+import { SpeciesSystem } from './systems/SpeciesSystem.js';
 import { WildfireFx } from './ui/WildfireFx.js';
 
 import { HUD } from './ui/HUD.js';
@@ -129,6 +130,10 @@ function startGame(state) {
   // Forestry + government. Ticks forest health + liability; hooks into
   // EVENT_FIRED so wildfire-class events charge the sitting incumbent.
   const forestry   = new ForestrySystem(state, bus);
+  // Biodiversity — reads tempAnomalyC, mutates species statuses, emits
+  // SPECIES_* events that NewsSystem (already constructed above) picks up
+  // for the ticker and dispatches log.
+  const species    = new SpeciesSystem(state, bus);    void species;
 
   // UI
   let worldMap;
@@ -244,7 +249,7 @@ function startGame(state) {
         category: evt.category || null,
         title: evt.title || 'Decision',
         body: p.headline || '',
-        detail: 'The council is waiting on you. Open to read the full situation and decide.',
+        detail: 'The advisors are waiting on you. Open to read the full situation and decide.',
         needsAction: true,
         eventId: evt.id,
         expiresAtTick: evt.expiresAtTick ?? null,
@@ -254,6 +259,8 @@ function startGame(state) {
       // Echoes are delayed consequences of past decisions — they're logged
       // as events (same category in the filter strip) with an "Echo" label
       // so the player can trace the chain back to its source decision.
+      // No toast: the ticker already carries the headline and dispatches
+      // holds the full record, so a passive event doesn't need three surfaces.
       logDispatch(state, bus, {
         kind: 'event',
         tone: p.tone || 'neutral',
@@ -261,7 +268,6 @@ function startGame(state) {
         body: p.headline || '',
         detail: isEcho ? 'Consequence of an earlier decision.' : '',
       });
-      showToast(evt.title ?? 'Event', p.headline ?? '', p.tone);
     }
   });
   bus.on(EVT.NET_ZERO, (p) => {

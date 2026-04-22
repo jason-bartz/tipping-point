@@ -1,9 +1,9 @@
 // First-run tutorial + reopen-from-HUD. Pauses the game while open.
 //
-// Structure: three numbered "big beats" (Research → Deploy → Win), each a
-// one-sentence takeaway plus a compact detail line. A "Skip to the game"
-// ghost button is always visible so first-time players who trust their
-// instincts don't have to read anything to start. The Glossary is linked
+// Structure: four numbered "big beats" (Research → Deploy → Advisors →
+// Win), each a one-sentence takeaway plus a compact detail line. One
+// primary CTA closes the modal — the × button, Escape, and backdrop click
+// are enough fallbacks for impatient first-timers. The Glossary is linked
 // for the curious. Keyboard shortcuts are surfaced in the footer so the
 // info is discoverable without stretching the modal.
 
@@ -29,7 +29,7 @@ export function showTutorial({ state, pauseWhileOpen = false } = {}) {
   modal.innerHTML = `<div class="tutorial-card" role="dialog" aria-label="How to play">
     <button class="modal-close" type="button" aria-label="Close how to play">×</button>
     <h2>How to Play</h2>
-    <p class="tutorial-intro">No ticking clock — play until you <b>reverse</b> climate change or temperature crosses <b>+4°C</b>. Three things to learn:</p>
+    <p class="tutorial-intro">No ticking clock — play until you <b>reverse</b> climate change or temperature crosses <b>+4°C</b>. Four things to learn:</p>
     <div class="tutorial-steps">
       <div class="tutorial-step">
         <div class="tutorial-step-num">1</div>
@@ -48,6 +48,13 @@ export function showTutorial({ state, pauseWhileOpen = false } = {}) {
       <div class="tutorial-step">
         <div class="tutorial-step-num">3</div>
         <div>
+          <b>Work your Advisors.</b>
+          <div class="tutorial-step-sub">The <b>Advisors</b> tab holds four voices — scientist, diplomat, activist, industrialist — who weigh in on every decision and flag tipping points before they bite. They propose <b>agendas</b> you fulfill through normal play; click a seat to see who wants what. Push influence to <b>80</b> to unlock a signature ability — free deploys, backchannel, and more.</div>
+        </div>
+      </div>
+      <div class="tutorial-step">
+        <div class="tutorial-step-num">4</div>
+        <div>
           <b>Win by bending the curve.</b>
           <div class="tutorial-step-sub">CO₂ past peak (−8 ppm), peak temp ≤ <b>+2.1°C</b>, and <b>65%+</b> of countries at Net Zero. Stalling is losing in slow motion.</div>
         </div>
@@ -56,7 +63,6 @@ export function showTutorial({ state, pauseWhileOpen = false } = {}) {
     <p class="tutorial-outro">Keys: <span class="kbd">Space</span> pause · <span class="kbd">1</span>/<span class="kbd">2</span>/<span class="kbd">4</span> speed · <span class="kbd">H</span> help · <span class="kbd">S</span> stats · <span class="kbd">Esc</span> close modals. Progress autosaves every 20 seconds.</p>
     <div class="tutorial-foot">
       <button class="tutorial-glossary" type="button">Glossary</button>
-      <button class="tutorial-skip" type="button">Skip to the game</button>
       <button class="tutorial-dismiss" type="button">Got it — let's go</button>
     </div>
   </div>`;
@@ -75,7 +81,6 @@ export function showTutorial({ state, pauseWhileOpen = false } = {}) {
     label: 'How to play',
   });
   modal.querySelector('.tutorial-dismiss').addEventListener('click', close);
-  modal.querySelector('.tutorial-skip').addEventListener('click', close);
   modal.querySelector('.modal-close').addEventListener('click', close);
   modal.querySelector('.tutorial-glossary').addEventListener('click', () => showGlossary());
   modal.addEventListener('click', (e) => { if (e.target === modal) close(); });

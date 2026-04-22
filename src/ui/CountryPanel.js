@@ -214,7 +214,8 @@ export class CountryPanel {
 
     const cp = s.world.climatePoints;
     const canAfford = cp >= projection.effectiveCost;
-    const blocked = !gate.allowed || !canAfford;
+    const capReached = projection.capReached;
+    const blocked = !gate.allowed || !canAfford || capReached;
 
     const branch = BRANCHES[activity.branch];
     const effectPct = Math.round(projection.effectiveYield * 100);
@@ -257,8 +258,10 @@ export class CountryPanel {
 
     // CTA text.
     let cta = 'Deploy';
-    if (!gate.allowed) cta = `Locked`;
-    else if (!canAfford) cta = `Need ${projection.effectiveCost} ${COIN}`;
+    if (capReached)         cta = `Maxed (${projection.prevDeploys}/${projection.maxPerPair})`;
+    else if (!gate.allowed) cta = `Locked`;
+    else if (!canAfford)    cta = `Need ${projection.effectiveCost} ${COIN}`;
+    else if (projection.prevDeploys > 0) cta = `Deploy (${projection.prevDeploys + 1}/${projection.maxPerPair})`;
 
     // Tooltip summarizes the whole projection.
     const tip = [
@@ -271,7 +274,7 @@ export class CountryPanel {
       projection.synergies.length ? `Synergies: ${projection.synergies.map(s => s.label).join(' · ')}.` : '',
     ].filter(Boolean).join(' ');
 
-    return `<button class="deploy-btn ${blocked ? 'blocked' : ''} ${!gate.allowed ? 'gate-blocked' : ''}" ${blocked ? 'disabled' : ''} data-id="${activity.id}" title="${tip.replace(/"/g, '&quot;')}">
+    return `<button class="deploy-btn ${blocked ? 'blocked' : ''} ${!gate.allowed ? 'gate-blocked' : ''} ${capReached ? 'cap-reached' : ''}" ${blocked ? 'disabled' : ''} data-id="${activity.id}" data-deploys="${projection.prevDeploys}" data-cap="${projection.maxPerPair}" title="${tip.replace(/"/g, '&quot;')}">
       <div class="deploy-btn-head">
         <span class="deploy-btn-name">${activity.name}</span>
         ${costBadge}

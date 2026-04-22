@@ -132,7 +132,13 @@ export const AGENDA_CATALOG = {
     {
       id: 'capstone_within_25',
       text: 'Complete a Tier 3+ research project.',
-      guard: (s) => s.meta.tick >= 16,
+      guard: (s) => {
+        if (s.meta.tick < 16) return false;
+        for (const id of s.world.researched) {
+          if ((s.activities[id]?.tier ?? 0) >= 3) return false;
+        }
+        return true;
+      },
       durationTicks: 26,
       start: (s) => ({ baseline: [...s.world.researched] }),
       progress: (s) => {
@@ -153,6 +159,9 @@ export const AGENDA_CATALOG = {
       id: 'three_high_will',
       text: 'Get three countries above 70 political will.',
       durationTicks: 20,
+      // Don't hand a reward for a state the player already had — only propose
+      // when fewer than three countries are at the threshold.
+      guard: (s) => Object.values(s.countries).filter(c => (c.politicalWill ?? 0) >= 70).length < 3,
       start: () => ({}),
       progress: (s) => {
         const n = Object.values(s.countries).filter(c => (c.politicalWill ?? 0) >= 70).length;
@@ -180,6 +189,10 @@ export const AGENDA_CATALOG = {
       id: 'home_policy_50',
       text: 'Reach 50% Policy adoption in the home country.',
       durationTicks: 22,
+      guard: (s) => {
+        const c = s.countries[s.meta.homeCountryId];
+        return !!c && (c.adoption.policy ?? 0) < 0.5;
+      },
       start: () => ({}),
       progress: (s) => {
         const c = s.countries[s.meta.homeCountryId];
@@ -219,10 +232,15 @@ export const AGENDA_CATALOG = {
       id: 'hold_temp',
       text: 'Keep temperature from rising 0.05°C over the next 14 quarters.',
       durationTicks: 14,
-      start: (s) => ({ baseline: s.world.tempAnomalyC }),
+      // Ramp with elapsed ticks so the win only lands at the deadline.
+      // Without startTick the old binary progress returned 1 on tick 1 and
+      // the AdvisorSystem resolved it immediately — the duration was moot.
+      start: (s) => ({ baseline: s.world.tempAnomalyC, startTick: s.meta.tick }),
       progress: (s, snap) => {
         const delta = s.world.tempAnomalyC - snap.baseline;
-        return delta <= 0.05 ? 1 : 0; // binary check; failure at deadline if still >0.05
+        if (delta > 0.05) return 0;
+        const elapsed = s.meta.tick - (snap.startTick ?? s.meta.tick);
+        return Math.min(1, Math.max(0, elapsed) / 14);
       },
       reward: { kind: 'willAll', value: 4,
         title: 'Public Wins the Room',
@@ -255,6 +273,10 @@ export const AGENDA_CATALOG = {
       id: 'home_industry_40',
       text: 'Reach 40% Industry adoption in the home country.',
       durationTicks: 24,
+      guard: (s) => {
+        const c = s.countries[s.meta.homeCountryId];
+        return !!c && (c.adoption.industry ?? 0) < 0.40;
+      },
       start: () => ({}),
       progress: (s) => {
         const c = s.countries[s.meta.homeCountryId];
@@ -379,7 +401,7 @@ export const CONFLICT_POOL = [
 export const WHISPER_MAP = {
   methane_burp:       { advisor: 'scientist', lookaheadTempC: 1.65, text: 'The Chief Scientist warns permafrost methane is primed. Temperature must not cross +1.7°C.' },
   arctic_ice_free:    { advisor: 'scientist', lookaheadTempC: 1.85, text: 'The Chief Scientist reports Arctic ice is at record lows. One more hot summer flips it.' },
-  amazon_dieback:     { advisor: 'activist',  lookaheadTempC: 1.55, text: 'Councilor Machado reports Amazon understory is drying. Dieback begins near +1.6°C.' },
+  amazon_dieback:     { advisor: 'activist',  lookaheadTempC: 1.55, text: 'Advisor Machado reports Amazon understory is drying. Dieback begins near +1.6°C.' },
   coral_bleach:       { advisor: 'activist',  lookaheadTempC: 1.35, text: 'Reef monitors report mass bleaching within one hot season. Reef ecosystems are on the brink.' },
   carbon_bomb:        { advisor: 'diplomat',  lookaheadTempC: 1.75, text: 'Intelligence: petrostate majors are preparing a final extraction push. Diplomatic pressure now, or never.' },
 };

@@ -1,7 +1,7 @@
 // Advisory Board orchestrator. Each tick:
 //   1. Update telemetry (deploy log, mood derivation).
 //   2. Drive each advisor's agenda lifecycle: propose → track → resolve.
-//   3. Roll for a council conflict if conditions allow.
+//   3. Roll for an advisor conflict if conditions allow.
 //   4. Fire crisis whispers when tipping-point guards are close to triggering.
 //   5. Bookkeep ability cooldowns + deploy-discount windows.
 //
@@ -69,7 +69,7 @@ export class AdvisorSystem {
       this._updateAgenda(seat);
     }
 
-    // Council conflicts + whispers.
+    // Advisor conflicts + whispers.
     this._maybeFireConflict();
     this._maybeFireWhisper();
   }

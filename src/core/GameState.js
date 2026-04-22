@@ -12,6 +12,7 @@ import { COUNTRY_PROFILES, DEFAULT_MOD, startingAdoption } from '../data/profile
 import { ADVISOR_IDS } from '../data/advisors.js';
 import { resolveAdvisor } from '../model/Advisors.js';
 import { createGovernment } from '../model/Government.js';
+import { SPECIES } from '../data/species.js';
 import { Rng, makeSeed } from './Random.js';
 
 // Build a normalized, symmetric adjacency table once per game. Neighbor
@@ -172,6 +173,23 @@ export function createState(homeCountryId, { seed } = {}) {
     activeEvents: [],
     collectables: [],
     advisors: createAdvisorSlice(homeCountryId),
+    // Biodiversity — curated Red List roster. SpeciesSystem mutates status,
+    // tempAnchor, rediscovered, lastChangeTick on each scan. queue holds
+    // pending announcements so a bad year drip-feeds into the ticker rather
+    // than dumping six headlines on the same frame.
+    biodiversity: {
+      species: SPECIES.map(def => ({
+        id: def.id,
+        status: def.baseStatus,
+        tempAnchor: BALANCE.startingTempAnomalyC,
+        rediscovered: false,
+        lastChangeTick: 0,
+      })),
+      lastCheckTick: -999,
+      lastRediscoveryTick: -999,
+      peakTemp: BALANCE.startingTempAnomalyC,
+      queue: [],
+    },
   };
 }
 

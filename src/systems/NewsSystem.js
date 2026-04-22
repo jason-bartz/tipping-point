@@ -6,6 +6,7 @@
 import { EVT } from '../core/EventBus.js';
 import { NEWS_POOL } from '../data/news.js';
 import { BALANCE } from '../config/balance.js';
+import { STATUS_LABELS, TAXON_EMOJI } from '../data/species.js';
 
 export class NewsSystem {
   constructor(state, bus) {
@@ -17,11 +18,16 @@ export class NewsSystem {
     this._firstCO2DropHit = false;
     this._firstCapstoneHit = false;
     bus.on(EVT.TICK, () => this.tick());
-    bus.on(EVT.RESEARCH_STARTED, (p) => this.push(`${this._homeName()} opens a ${p.activity.name} research program.`, 'info'));
     bus.on(EVT.RESEARCH_DONE, (p) => this._onResearchDone(p));
     bus.on(EVT.NET_ZERO, (p) => this._onNetZero(p));
     bus.on(EVT.EVENT_FIRED, (p) => this._onEventFired(p));
     bus.on(EVT.DEPLOYED, (p) => this._onDeployed(p));
+    // Species ticker. SpeciesSystem fires SPECIES_STATUS_CHANGED twice per
+    // actual change: once live (for UI listeners / dispatches) and once with
+    // `drained: true` when it finally releases the headline through its
+    // rate-limited queue. We only publish on the drained copy so a bad year
+    // doesn't collapse four downlistings into the same visible tick.
+    bus.on(EVT.SPECIES_STATUS_CHANGED, (p) => { if (p?.drained) this._onSpeciesChange(p); });
   }
 
   // Turn major events into "BREAKING:" headlines. The ticker's LIVE label
@@ -37,10 +43,6 @@ export class NewsSystem {
     } else {
       this.push(p.headline, p.tone);
     }
-  }
-
-  _homeName() {
-    return this.s.countries[this.s.meta.homeCountryId]?.name ?? 'The Initiative';
   }
 
   tick() {
@@ -114,6 +116,29 @@ export class NewsSystem {
     if (rng.random() < 0.15) {
       this.push(`${a.name} rolled out in ${c.name}.`, 'info');
     }
+  }
+
+  _onSpeciesChange(p) {
+    const { def, prevStatus, nextStatus, kind } = p;
+    if (!def) return;
+    const emoji = TAXON_EMOJI[def.taxon] || '';
+    const prevLabel = STATUS_LABELS[prevStatus] || prevStatus;
+    const nextLabel = STATUS_LABELS[nextStatus] || nextStatus;
+    if (kind === 'rediscovery') {
+      this.push(`${emoji} BREAKING: ${def.name} rediscovered in ${def.region}. Listed as Critically Endangered — back from the dead.`, 'breaking');
+      return;
+    }
+    if (nextStatus === 'EX') {
+      this.push(`${emoji} BREAKING: ${def.name} declared extinct. Last seen in ${def.region}.`, 'breaking');
+      return;
+    }
+    if (kind === 'recovery') {
+      this.push(`${emoji} ${def.name} downlisted from ${prevLabel} to ${nextLabel}. Populations returning in ${def.region}.`, 'good');
+      return;
+    }
+    // Generic decline. Tone escalates with how dire the new status is.
+    const tone = (nextStatus === 'CR' || nextStatus === 'EW') ? 'bad' : 'info';
+    this.push(`${emoji} ${def.name} uplisted from ${prevLabel} to ${nextLabel}. ${def.region} populations in decline.`, tone);
   }
 
   push(text, tone) {

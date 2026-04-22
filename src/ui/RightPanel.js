@@ -77,7 +77,6 @@ export class RightPanel {
               aria-selected="${t.id === this.active ? 'true' : 'false'}">
         <span class="rt-tab-label">${t.label}</span>
         <span class="rt-tab-badge" hidden>0</span>
-        <span class="rt-tab-dot" aria-hidden="true" hidden></span>
       </button>`).join('');
     for (const btn of this.tabStrip.querySelectorAll('.rt-tab')) {
       btn.addEventListener('click', () => this.setActive(btn.dataset.view));
@@ -100,13 +99,11 @@ export class RightPanel {
     const tab = this.tabStrip.querySelector('.rt-tab[data-view="dispatches"]');
     if (!tab) return;
     const badge = tab.querySelector('.rt-tab-badge');
-    const dot   = tab.querySelector('.rt-tab-dot');
     const pending = pendingDecisionCount(this.state);
     // Badge stays hidden — the tab is decisions-only now and we don't want
-    // to nag about already-answered log entries. The pulsing dot alone
-    // signals "something needs you" when a decision is pending.
+    // to nag about already-answered log entries. A pulsing red outline on
+    // the tab itself signals "something needs you" when a decision is pending.
     if (badge) badge.hidden = true;
-    if (dot) dot.hidden = pending === 0;
     tab.classList.toggle('rt-tab-urgent', pending > 0);
   }
 

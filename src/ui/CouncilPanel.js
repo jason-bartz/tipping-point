@@ -1,4 +1,4 @@
-// Council panel. Lives inside the left sidebar's Council tab as a vertical
+// Advisors panel. Lives inside the left sidebar's Advisors tab as a vertical
 // list of advisor seats — portrait, mood dot, name, one-liner, influence
 // bar, and active agenda. Clicking a seat expands a detail card beneath it
 // with the signature-ability button (unlocks at 80 influence).
