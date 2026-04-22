@@ -24,6 +24,11 @@ const FIRE_EVENTS = {
   wildfire_local:    { scope: 'target', firesMin: 4, firesMax: 6 },
   wildfire:          { scope: 'global', countries: 5, firesMin: 2, firesMax: 3, forestBias: true },
   wildfire_smog:     { scope: 'global', countries: 3, firesMin: 3, firesMax: 5, smokeHeavy: true, forestBias: true },
+  // Interactive disaster: the modal already does the emotional heavy lift, so
+  // the map FX is a concentrated burn on the target rather than a global
+  // spectacle. Larger than wildfire_local so the map reads the same ceremony
+  // level as the hero-image modal.
+  wildfire_disaster: { scope: 'target', firesMin: 5, firesMax: 7, smokeHeavy: true },
   // Sporadic out-of-season fires fired by SporadicWildfireSystem. One country,
   // a couple of flames — visibly smaller than a wildfire-season event so the
   // player reads it as "background hazard" rather than "crisis beat".

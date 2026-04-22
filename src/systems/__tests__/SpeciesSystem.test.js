@@ -133,7 +133,7 @@ describe('SpeciesSystem — rediscovery', () => {
     state.biodiversity.peakTemp = 3.0;
     state.biodiversity.lastRediscoveryTick = -999;
 
-    let rediscoveries = [];
+    const rediscoveries = [];
     bus.on(EVT.SPECIES_REDISCOVERED, (p) => rediscoveries.push(p));
 
     // Run for 100 years at cool temp so the rng has many tries against

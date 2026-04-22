@@ -84,6 +84,13 @@ export const BALANCE = {
   // so strict that guards can starve the pool.
   interactiveRecencyWindow: 8,
 
+  // Disaster cadence. Disasters (events tagged `disaster: true`) ride the
+  // interactive track but carry an extra min-gap so a warming run isn't
+  // carpet-bombed with hurricanes and wildfires back-to-back. ~12 ticks is
+  // 3 in-game years — enough space for the echo from the previous one to
+  // land before the next hero-image modal interrupts.
+  disasterMinGapTicks: 12,
+
   // Default penalty when a decision expires without a choice. Stackable —
   // author events can add `onExpire` effects that run *instead of* these.
   decisionExpirePoliticalWillHit: 8,  // drains target (or all if no target) by this
@@ -232,9 +239,10 @@ export const BALANCE = {
     // One-shot liability hits from wildfire events. Keyed by event id so
     // events.js can stay declarative; ForestrySystem reads from here.
     wildfireLiability: {
-      wildfire:       30,  // global megafire season
-      wildfire_local: 25,  // targeted country wildfire
-      wildfire_smog:  15,  // continental smog event
+      wildfire:          30,  // global megafire season
+      wildfire_local:    25,  // targeted country wildfire
+      wildfire_smog:     15,  // continental smog event
+      wildfire_disaster: 35,  // interactive disaster (biggest single-country hit — it's a ceremony-level crisis)
     },
   },
 

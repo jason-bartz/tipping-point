@@ -275,6 +275,222 @@ export const EVENT_POOL = [
       { op: 'addTarget', field: 'politicalWill', value: -5 },
     ] },
 
+  // ═══════════════ DISASTER EVENTS (interactive, hero-image) ═══════════════
+  // These differ from the fire-and-forget local beats above: each pops a
+  // modal with a pixel-art hero image and a "spend to protect" vs "eat the
+  // damage" choice. Cadence is extra-gated in EventSystem by
+  // BALANCE.disasterMinGapTicks so a run can't get carpet-bombed. Guards are
+  // temp-tiered so early-game sees only a small pool; late-game unlocks
+  // hurricanes, blizzards, and the drought→famine chain.
+
+  { id: 'wildfire_disaster', weight: 3, tone: 'bad', interactive: true, disaster: true,
+    category: 'unintended', title: 'Wildfires Rage', heroImage: '/disasters/wildfires.webp',
+    guard: (s) => s.world.tempAnomalyC >= 1.2,
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.climateVulnerability >= 1.5)),
+    headline: (s, ctx) => `Megafires consume forests across ${ctx.target?.name}. Smoke blackens the sky for a thousand miles. Evacuations underway.`,
+    choices: [
+      { key: 'deploy_aid', label: 'Deploy emergency aid ($$$)', headline: 'Federal crews mobilize. Lines hold. The forests are still gone, but the towns are not.', tone: 'neutral',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: -6 },
+          { op: 'addTarget', field: 'adoption.land', value: -0.03 },
+          { op: 'addTarget', field: 'politicalWill', value: 4 },
+          { op: 'addWorld', field: 'co2ppm', value: 0.3 },
+        ],
+        echo: { delayTicks: 10, tone: 'good',
+          headline: (s, ctx) => `Two years on, ${ctx?.target?.name ?? 'the country'} credits the rapid response for saving three towns. The reforestation line-item finally passes.` } },
+      { key: 'let_burn', label: 'Let it burn, focus elsewhere', headline: 'Towns lost. Satellite images go viral. The land will not recover this decade.', tone: 'bad',
+        effects: [
+          { op: 'addTarget', field: 'adoption.land', value: -0.08 },
+          { op: 'addTarget', field: 'politicalWill', value: -10 },
+          { op: 'addWorld', field: 'co2ppm', value: 0.7 },
+          { op: 'addWorld', field: 'societalStress', value: 4 },
+        ],
+        echo: { delayTicks: 12, tone: 'bad',
+          headline: (s, ctx) => `Three years on, ${ctx?.target?.name ?? 'the country'}'s forest belt has shifted north by a hundred miles. What burned did not grow back.` } },
+    ] },
+
+  { id: 'flood_disaster', weight: 3, tone: 'bad', interactive: true, disaster: true,
+    category: 'unintended', title: 'Catastrophic Flooding', heroImage: '/disasters/flood.webp',
+    guard: (s) => s.world.tempAnomalyC >= 1.2,
+    target: (s, rng) => rng.pick(Object.values(s.countries)),
+    headline: (s, ctx) => `A month's rain falls in a day across ${ctx.target?.name}. Rivers jump banks. Subways fill. Denial gets quiet.`,
+    choices: [
+      { key: 'rebuild_green', label: 'Fund resilient rebuild ($$$)', headline: 'New levees rise. Wetlands restored. The next flood will hit softer ground.', tone: 'good',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: -8 },
+          { op: 'addTarget', field: 'adoption.policy', value: 0.05 },
+          { op: 'addTarget', field: 'politicalWill', value: 8 },
+          { op: 'addWorld', field: 'societalStress', value: 2 },
+        ],
+        echo: { delayTicks: 14, tone: 'good',
+          headline: (s, ctx) => `Three years on, ${ctx?.target?.name ?? 'the region'}'s rebuild is the template. Insurance premiums actually fall.` } },
+      { key: 'cheap_rebuild', label: 'Rebuild as-is, it was fine before', headline: 'Cranes go up. Concrete returns. The architects quietly bet on the next one.', tone: 'bad',
+        effects: [
+          { op: 'addTarget', field: 'adoption.policy', value: -0.04 },
+          { op: 'addTarget', field: 'politicalWill', value: -6 },
+          { op: 'addWorld', field: 'societalStress', value: 4 },
+        ],
+        echo: { delayTicks: 14, tone: 'bad',
+          headline: (s, ctx) => `Three years on, ${ctx?.target?.name ?? 'the region'} floods again. The headlines write themselves.` } },
+    ] },
+
+  { id: 'tornado_disaster', weight: 2, tone: 'bad', interactive: true, disaster: true,
+    category: 'unintended', title: 'Tornado Outbreak', heroImage: '/disasters/tornado.webp',
+    guard: (s) => s.world.tempAnomalyC >= 1.2,
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => Math.abs(c.lat ?? 0) >= 20 && Math.abs(c.lat ?? 0) <= 55)),
+    headline: (s, ctx) => `A supercell outbreak carves a hundred-mile scar across ${ctx.target?.name}. Entire towns are rubble by morning.`,
+    choices: [
+      { key: 'retool_industry', label: 'Rebuild with clean industry', headline: 'Rebuild contracts go to electrified factories. A tragedy becomes a pilot program.', tone: 'good',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: -4 },
+          { op: 'addTarget', field: 'adoption.industry', value: 0.04 },
+          { op: 'addTarget', field: 'politicalWill', value: 4 },
+        ],
+        echo: { delayTicks: 12, tone: 'good',
+          headline: (s, ctx) => `Three years on, the rebuilt corridor in ${ctx?.target?.name ?? 'the region'} is the greenest industrial zone on the continent.` } },
+      { key: 'rebuild_same', label: 'Rebuild what was there', headline: 'Foundations re-poured. Same pipes. Same grid. Same vulnerabilities.', tone: 'bad',
+        effects: [
+          { op: 'addTarget', field: 'adoption.industry', value: -0.03 },
+          { op: 'addTarget', field: 'politicalWill', value: -4 },
+          { op: 'addWorld', field: 'societalStress', value: 2 },
+        ],
+        echo: { delayTicks: 10, tone: 'bad',
+          headline: (s, ctx) => `Two years on, ${ctx?.target?.name ?? 'the region'} is hit by another outbreak. The rebuilt structures fail the same way.` } },
+    ] },
+
+  { id: 'drought_disaster', weight: 3, tone: 'bad', interactive: true, disaster: true,
+    category: 'unintended', title: 'Multi-Year Drought', heroImage: '/disasters/drought.webp',
+    guard: (s) => s.world.tempAnomalyC >= 1.4,
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.infra === 'agricultural' || c.climateVulnerability >= 2.0)),
+    headline: (s, ctx) => `${ctx.target?.name} enters its fifth dry year. Aquifers dropping. Breadbasket turning to dust.`,
+    choices: [
+      { key: 'water_aid', label: 'Water infrastructure package ($$$)', headline: 'Desal plants commissioned. Irrigation modernized. Farms hold the line.', tone: 'good',
+        apply: (s, ctx) => {
+          s.world.climatePoints = (s.world.climatePoints ?? 0) - 8;
+          if (ctx.target) {
+            ctx.target.adoption.land = Math.max(0, Math.min(1, (ctx.target.adoption.land ?? 0) - 0.03));
+            ctx.target.politicalWill = Math.max(8, Math.min(100, (ctx.target.politicalWill ?? 0) + 6));
+          }
+          // Short famine window: if the drought bites again inside 12 ticks,
+          // famine becomes eligible. Expires silently otherwise.
+          s.meta.droughtFamineUntilTick = s.meta.tick + 12;
+        },
+        summaryOverride: '-8 Credits · -0.03 Land · +6 Will',
+        echo: { delayTicks: 12, tone: 'good',
+          headline: (s, ctx) => `Three years on, ${ctx?.target?.name ?? 'the region'}'s new water system is studied worldwide. Yields are climbing.` } },
+      { key: 'ride_it_out', label: "Ride it out, it's a dry spell", headline: 'Wells deepen. Farms fold. Grain prices jump. Queues form at food banks.', tone: 'bad',
+        apply: (s, ctx) => {
+          if (ctx.target) {
+            ctx.target.adoption.land = Math.max(0, Math.min(1, (ctx.target.adoption.land ?? 0) - 0.08));
+            ctx.target.politicalWill = Math.max(8, Math.min(100, (ctx.target.politicalWill ?? 0) - 10));
+          }
+          s.world.societalStress = Math.max(0, (s.world.societalStress ?? 0) + 5);
+          // Longer famine window when nothing was done — the crops keep
+          // failing and the next event lands harder.
+          s.meta.droughtFamineUntilTick = s.meta.tick + 16;
+        },
+        summaryOverride: '-0.08 Land · -10 Will · +5 Stress',
+        echo: { delayTicks: 10, tone: 'bad',
+          headline: (s, ctx) => `Two years on, the drought has become the climate. ${ctx?.target?.name ?? 'The region'}'s farm belt is abandoned.` } },
+    ] },
+
+  { id: 'hurricane_disaster', weight: 3, tone: 'bad', interactive: true, disaster: true,
+    category: 'unintended', title: 'Category 6 Hurricane', heroImage: '/disasters/hurricane.webp',
+    guard: (s) => s.world.tempAnomalyC >= 1.5,
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.climateVulnerability >= 2.0)),
+    headline: (s, ctx) => `A storm the ocean should not have been warm enough to birth makes landfall in ${ctx.target?.name}. Winds off the charts.`,
+    advisorStances: [
+      { advisor: 'diplomat',  supports: 'mobilize', stance: 'Open the treasury. A functioning state now is cheaper than a failed state later.' },
+      { advisor: 'industrialist', supports: 'triage', stance: 'We cannot bankrupt the transition to rebuild every coast. Hard choices, now.' },
+    ],
+    choices: [
+      { key: 'mobilize', label: 'Full emergency mobilization ($$$)', headline: 'National guard, aid convoys, federal rebuild. The country holds together.', tone: 'good',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: -12 },
+          { op: 'addTarget', field: 'politicalWill', value: 8 },
+          { op: 'addAllCountries', field: 'politicalWill', value: 3 },
+          { op: 'addWorld', field: 'societalStress', value: 3 },
+        ],
+        echo: { delayTicks: 16, tone: 'good',
+          headline: (s, ctx) => `Four years on, ${ctx?.target?.name ?? 'the country'}'s coast is rebuilt with seawalls, mangroves, and a carbon tax to pay for it.` } },
+      { key: 'triage', label: 'Triage and move on', headline: 'The cameras leave. The affected stay. The politics go rancid.', tone: 'bad',
+        effects: [
+          { op: 'addTarget', field: 'adoption.energy', value: -0.06 },
+          { op: 'addTarget', field: 'adoption.transport', value: -0.05 },
+          { op: 'addTarget', field: 'politicalWill', value: -12 },
+          { op: 'addWorld', field: 'societalStress', value: 6 },
+          { op: 'addWorld', field: 'co2ppm', value: 0.4 },
+        ],
+        echo: { delayTicks: 14, tone: 'bad',
+          headline: (s, ctx) => `Three years on, the triage zones in ${ctx?.target?.name ?? 'the country'} are still there. They are now called districts.` } },
+    ] },
+
+  { id: 'famine_disaster', weight: 3, tone: 'bad', interactive: true, disaster: true,
+    category: 'unintended', title: 'Famine', heroImage: '/disasters/famine.webp',
+    // Chain: only eligible if a drought_disaster landed recently and set the
+    // window. Without that flag, famine is never on the table — preserves
+    // cause-and-effect.
+    guard: (s) => s.world.tempAnomalyC >= 1.7 && (s.meta.droughtFamineUntilTick ?? 0) > s.meta.tick,
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.infra === 'agricultural' || c.climateVulnerability >= 2.2)),
+    headline: (s, ctx) => `Grain reserves hit zero in ${ctx.target?.name}. What drought began, markets finish. Food riots in three capitals.`,
+    choices: [
+      { key: 'aid_package', label: 'Global food aid package ($$$$)', headline: 'Convoys roll. Ports open. Nobody calls it a success, but fewer people die.', tone: 'neutral',
+        apply: (s, ctx) => {
+          s.world.climatePoints = (s.world.climatePoints ?? 0) - 14;
+          s.world.societalStress = Math.max(0, (s.world.societalStress ?? 0) - 2);
+          if (ctx.target) {
+            ctx.target.politicalWill = Math.max(8, Math.min(100, (ctx.target.politicalWill ?? 0) + 6));
+          }
+          for (const c of Object.values(s.countries)) {
+            c.politicalWill = Math.max(8, Math.min(100, (c.politicalWill ?? 0) + 2));
+          }
+          s.meta.droughtFamineUntilTick = 0; // consume the chain
+        },
+        summaryOverride: '-14 Credits · -2 Stress · +6 Will (target) · +2 Will (all)',
+        echo: { delayTicks: 14, tone: 'neutral',
+          headline: () => 'Three years on, the aid logistics built during the famine now run vaccine, seed, and disaster supply for a dozen countries.' } },
+      { key: 'market_forces', label: 'Let the market handle it', headline: 'Grain flows to who can pay. Streets fill. Governments fall.', tone: 'bad',
+        apply: (s, ctx) => {
+          if (ctx.target) {
+            ctx.target.politicalWill = Math.max(8, (ctx.target.politicalWill ?? 0) - 14);
+            ctx.target.adoption.land = Math.max(0, (ctx.target.adoption.land ?? 0) - 0.05);
+          }
+          for (const c of Object.values(s.countries)) {
+            c.politicalWill = Math.max(8, (c.politicalWill ?? 0) - 3);
+          }
+          s.world.societalStress = Math.max(0, (s.world.societalStress ?? 0) + 8);
+          s.meta.droughtFamineUntilTick = 0;
+        },
+        summaryOverride: '-14 Will (target) · -0.05 Land · -3 Will (all) · +8 Stress',
+        echo: { delayTicks: 12, tone: 'bad',
+          headline: (s, ctx) => `Three years on, ${ctx?.target?.name ?? 'the country'} is under a new government whose climate priorities are, to put it generously, different.` } },
+    ] },
+
+  { id: 'blizzard_disaster', weight: 2, tone: 'bad', interactive: true, disaster: true,
+    category: 'unintended', title: 'Polar Vortex Collapse', heroImage: '/disasters/blizzard.webp',
+    guard: (s) => s.world.tempAnomalyC >= 1.7,
+    target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => Math.abs(c.lat ?? 0) >= 35)),
+    headline: (s, ctx) => `The polar vortex buckles. ${ctx.target?.name} sits under Arctic air for two weeks. Grids fail. Pipes burst. A warming climate, frozen.`,
+    choices: [
+      { key: 'grid_harden', label: 'Harden the grid ($$$)', headline: 'Weatherized substations, storage, distributed backup. The next vortex hits and the lights stay on.', tone: 'good',
+        effects: [
+          { op: 'addWorld', field: 'climatePoints', value: -10 },
+          { op: 'addTarget', field: 'adoption.energy', value: 0.05 },
+          { op: 'addTarget', field: 'politicalWill', value: 6 },
+        ],
+        echo: { delayTicks: 16, tone: 'good',
+          headline: (s, ctx) => `Four years on, ${ctx?.target?.name ?? 'the country'}'s grid is the most reliable in the hemisphere. The blackout is taught in engineering schools.` } },
+      { key: 'subsidize_gas', label: 'Subsidize natural gas heating', headline: 'Pipeline expansion fast-tracked. Pilot lights stay lit. So does the fossil industry.', tone: 'bad',
+        effects: [
+          { op: 'addTarget', field: 'adoption.energy', value: -0.07 },
+          { op: 'addTarget', field: 'politicalWill', value: -4 },
+          { op: 'addWorld', field: 'co2ppm', value: 0.6 },
+          { op: 'addWorld', field: 'societalStress', value: 2 },
+        ],
+        echo: { delayTicks: 14, tone: 'bad',
+          headline: (s, ctx) => `Three years on, the gas buildout in ${ctx?.target?.name ?? 'the country'} has added a decade to its fossil dependency. The next vortex comes anyway.` } },
+    ] },
+
   { id: 'petro_discovery', weight: 2, tone: 'bad', title: 'New Oilfield Discovery',
     target: (s, rng) => rng.pick(Object.values(s.countries).filter(c => c.infra === 'petrostate')),
     headline: (s, ctx) => `${ctx.target?.name} announces massive new oilfield. Stocks up, will down.`,

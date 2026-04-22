@@ -14,8 +14,7 @@
 import { BALANCE } from '../config/balance.js';
 import { EVT } from '../core/EventBus.js';
 import { ADVISOR_IDS, ABILITIES, CONFLICT_POOL, WHISPER_MAP, ADVISOR_ARCHETYPES } from '../data/advisors.js';
-import { deriveMood, commentaryFor, pickAgenda, agendaProgress, agendaDef, clampInfluence, resolveAdvisor } from '../model/Advisors.js';
-import { applyEffects } from '../model/Events.js';
+import { deriveMood, commentaryFor, pickAgenda, agendaProgress, agendaDef, clampInfluence } from '../model/Advisors.js';
 
 export class AdvisorSystem {
   constructor(state, bus) {

@@ -27,8 +27,6 @@
 .gi-leaf      { mask-image: url('/icons/leaf.svg');      -webkit-mask-image: url('/icons/leaf.svg'); }
 .gi-star      { mask-image: url('/icons/star.svg');      -webkit-mask-image: url('/icons/star.svg'); }
 .gi-diamond   { mask-image: url('/icons/diamond.svg');   -webkit-mask-image: url('/icons/diamond.svg'); }
-.gi-stopwatch { mask-image: url('/icons/stopwatch.svg'); -webkit-mask-image: url('/icons/stopwatch.svg'); }
-.gi-pie       { mask-image: url('/icons/pie.svg');       -webkit-mask-image: url('/icons/pie.svg'); }
 
 /* HUD pixel-icon buttons — 16×16 PNG sprites from the 1-bit Pixel Icons set.
    Rendered as <img> with pixelated image-rendering so the browser upscales

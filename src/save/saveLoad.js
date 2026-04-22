@@ -177,6 +177,8 @@ export function deserialize(blob) {
   if (s.meta.lastEventTick == null) s.meta.lastEventTick = -999;
   if (s.meta.lastInteractiveTick == null) s.meta.lastInteractiveTick = -999;
   s.meta.recentInteractiveIds ||= [];
+  if (s.meta.lastDisasterTick == null) s.meta.lastDisasterTick = -999;
+  if (s.meta.droughtFamineUntilTick == null) s.meta.droughtFamineUntilTick = 0;
   // Dispatches log (v0.7+) — older saves just start with an empty feed; the
   // first live beat after resume will populate it. autoPausedForDecision is
   // a transient flag; always start cleared so a crashed session doesn't

@@ -21,7 +21,6 @@
 //   4. `prefers-reduced-motion` skips the rAF loop.
 
 import { EVT } from '../core/EventBus.js';
-import { BALANCE } from '../config/balance.js';
 
 const ATLAS_URL = '/clouds/Clouds.png';
 
@@ -122,7 +121,7 @@ export class SmogPlumes {
     return new Promise((ok, err) => {
       const img = new Image();
       img.onload = () => ok(img);
-      img.onerror = () => err(new Error('load failed: ' + url));
+      img.onerror = () => err(new Error(`load failed: ${  url}`));
       img.src = url;
     });
   }

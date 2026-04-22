@@ -87,6 +87,14 @@ export function createState(homeCountryId, { seed } = {}) {
       // full pool only if exclusion empties the candidates. Window size lives
       // on BALANCE.interactiveRecencyWindow.
       recentInteractiveIds: [],
+      // Last tick a disaster-tagged event fired. Separate from
+      // lastInteractiveTick because disasters carry their own min-gap
+      // (BALANCE.disasterMinGapTicks) on top of the normal interactive cadence.
+      lastDisasterTick: -999,
+      // Drought → famine chain window. Set by drought_disaster's apply();
+      // famine_disaster's guard checks this is still in the future. 0 = no
+      // active chain; famine cannot fire without a recent drought.
+      droughtFamineUntilTick: 0,
       // Persistent dispatches log — every event, news beat, research
       // completion, deploy milestone, and advisor whisper lands here so the
       // player can read the full text at their own pace. Capped to keep
@@ -202,7 +210,7 @@ export function createState(homeCountryId, { seed } = {}) {
 // Advisory Board state slice. Four seats, each tracking mood, a proposed
 // agenda (or null during cooldown), influence, ability cooldown. Transient
 // buffers live under `_` so save/load can drop them on resume.
-function createAdvisorSlice(homeCountryId) {
+function createAdvisorSlice(_homeCountryId) {
   const seats = {};
   for (const id of ADVISOR_IDS) {
     const resolved = resolveAdvisor(id);

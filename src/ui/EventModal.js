@@ -47,8 +47,12 @@ export function showEventModal(state, eventSystem, bus) {
   const hardCallChip = evt.category === 'unintended'
     ? `<span class="modal-hard-call" title="No clean answer — every path here carries real trade-offs. Read the choices carefully.">Hard call</span>`
     : '';
-  modal.innerHTML = `<div class="modal-card event-modal-card" role="dialog" aria-label="${evt.title}">
+  const heroImg = evt.heroImage
+    ? `<div class="modal-hero" role="img" aria-label="${evt.title}"><img src="${evt.heroImage}" alt="" decoding="async" loading="eager"></div>`
+    : '';
+  modal.innerHTML = `<div class="modal-card event-modal-card${evt.disaster ? ' disaster-event' : ''}" role="dialog" aria-label="${evt.title}">
     <button type="button" class="modal-close" aria-label="Close">×</button>
+    ${heroImg}
     <h2>${evt.title}${hardCallChip}</h2>
     ${hasTimer ? `<div class="modal-timer" aria-live="polite"><span class="modal-timer-label">Decide within</span><span class="modal-timer-val"></span></div>` : ''}
     <p>${evt.headline}</p>

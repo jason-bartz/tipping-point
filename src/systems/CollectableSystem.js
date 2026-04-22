@@ -66,7 +66,7 @@ export class CollectableSystem {
     if (!p || !isFinite(p[0]) || !isFinite(p[1])) return;
 
     const spawn = {
-      id: 'c_' + Math.floor(rng.random() * 1e9).toString(36),
+      id: `c_${  Math.floor(rng.random() * 1e9).toString(36)}`,
       type: type.id,
       icon: type.icon,
       value: type.value,

@@ -98,7 +98,7 @@ export class CloudLayer {
     return new Promise((ok, err) => {
       const img = new Image();
       img.onload = () => ok(img);
-      img.onerror = () => err(new Error('load failed: ' + url));
+      img.onerror = () => err(new Error(`load failed: ${  url}`));
       img.src = url;
     });
   }

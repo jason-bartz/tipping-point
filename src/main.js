@@ -108,7 +108,7 @@ function startGame(state) {
   if (teardown) { try { teardown(); } catch { /* ignore */ } teardown = null; }
 
   document.getElementById('country-screen').classList.remove('active');
-  document.getElementById('end-screen').classList.remove('active');
+  document.getElementById('end-screen').classList.remove('active', 'state-won', 'state-lost');
   document.getElementById('game').classList.add('active');
 
   const mapContainer = document.getElementById('map-container');
@@ -649,7 +649,7 @@ function returnToSelect() {
   if (teardown) { try { teardown(); } catch { /* ignore */ } teardown = null; }
   clearSave(); // the finished game is a snapshot of a game that's over
   document.getElementById('game').classList.remove('active');
-  document.getElementById('end-screen').classList.remove('active');
+  document.getElementById('end-screen').classList.remove('active', 'state-won', 'state-lost');
   document.getElementById('country-screen').classList.add('active');
   renderCountrySelect({ onStart: newGame, onResume: resumeGame, onLoadSlot: loadSlot });
 }

@@ -71,12 +71,6 @@ export const POP = {
   climateAnxietyScale: 0.05,
 };
 
-// Per-tick natural birth/death drift. Deterministic, small, gives the ticker
-// something to do even when climate is idle.
-export function naturalQuarterlyMultiplier(baseGrowthPerYear) {
-  return 1 + (baseGrowthPerYear ?? 0) / 4;
-}
-
 // Pure climate mortality rate (annualized fraction of population lost) given
 // a temperature anomaly and a country's exposure multiplier. Returns 0 until
 // the threshold; grows as a power curve beyond it.

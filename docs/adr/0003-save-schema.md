@@ -13,10 +13,11 @@
 
 ## Decision
 
-Adopt option (3) with an explicit contract. `saveLoad.js` holds a single `SCHEMA` integer (currently `1`). On `deserialize(blob)`:
+Adopt option (3) with two layers. `saveLoad.js` holds a `SCHEMA` integer (currently `2`) plus a numbered `MIGRATIONS` registry. On `deserialize(blob)`:
 
-1. Reject blobs where `blob.schema !== SCHEMA`. Migrations bump the schema version.
-2. For fields added *within* the current schema version, back-fill sane defaults at load time. Examples in current code:
+1. If `blob.schema > SCHEMA`, reject (we can't know how a future version shaped the blob).
+2. If `blob.schema < SCHEMA`, chain `MIGRATIONS[n]` forward until it matches. Each migration is a pure `(blob at schema=n) → (blob at schema=n+1)` function — no side effects, no I/O.
+3. After migration, run a shared **forward-compat back-fill** for non-breaking additions (new optional fields). Example:
    ```js
    s.world.deployCount ||= {};
    s.world.populationHistory ||= [0];
@@ -24,7 +25,9 @@ Adopt option (3) with an explicit contract. `saveLoad.js` holds a single `SCHEMA
      if (c.populationM == null) c.populationM = byId.get(c.id)?.populationM ?? 0;
    }
    ```
-3. Always keep one **fixture save** per "era" in `src/save/__tests__/fixtures/` and a matching migration test that proves the back-fill paths are wired.
+4. Always keep one **fixture save** per "era" in `src/save/__tests__/fixtures/` and a matching migration test that proves each migration path is wired.
+
+The split is important: **numbered migrations** handle breaking shape changes (rename/remove/retype); **back-fill** handles new optional fields within the current schema version. Anything that removes or retypes a field must go through a numbered migration so old blobs can be distinguished from new.
 
 Non-JSON members (RNG, `Set` of researched) are re-constructed from their JSON-safe counterparts (seed number, array).
 

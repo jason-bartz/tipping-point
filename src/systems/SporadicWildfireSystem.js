@@ -18,7 +18,7 @@
 import { BALANCE } from '../config/balance.js';
 import { EVT } from '../core/EventBus.js';
 
-const SEASON_WILDFIRE_IDS = new Set(['wildfire', 'wildfire_local', 'wildfire_smog']);
+const SEASON_WILDFIRE_IDS = new Set(['wildfire', 'wildfire_local', 'wildfire_smog', 'wildfire_disaster']);
 
 const HEADLINES = [
   (c) => `Out-of-season wildfires scorch ${c.name}. Emergency budget tapped.`,

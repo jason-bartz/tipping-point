@@ -1,7 +1,7 @@
 // Sentry integration. No-op when VITE_SENTRY_DSN is unset, so dev builds and
 // self-hosted deploys without an account stay quiet.
 //
-// Two surfaces:
+// Three surfaces:
 //   · initSentry()  — call once from main.js before app code runs. Auto-binds
 //                     window.onerror + unhandledrejection.
 //   · captureError(err, ctx) — explicit capture for caught/swallowed errors
@@ -22,7 +22,10 @@ export function initSentry() {
     dsn,
     environment: import.meta.env.MODE,
     release: import.meta.env.VITE_RELEASE,
-    tracesSampleRate: 0,
+    // 10% perf sampling during launch week to catch long-session regressions
+    // without swamping the Sentry quota. Dial back to 0 once the dashboard is
+    // quiet — the errors path is always 100%.
+    tracesSampleRate: 0.1,
     sendDefaultPii: false,
     beforeSend(event) {
       // Strip query string from URL — debug flags like ?cheats=1 are
@@ -40,11 +43,6 @@ export function initSentry() {
 export function captureError(err, context = {}) {
   if (!initialized) return;
   Sentry.captureException(err, { extra: context });
-}
-
-export function captureMessage(message, context = {}) {
-  if (!initialized) return;
-  Sentry.captureMessage(message, { extra: context });
 }
 
 export const SentryReporter = {

@@ -7,8 +7,8 @@ It's 2026. CO₂ is at 420 ppm, global temperature is +1.2°C. You don't spread 
 
 Each tick, the sim runs this pipeline in order ([src/systems/](../src/systems/)):
 
-1. **BAU creep** — each country's baseline emissions grow by ~0.8%/yr, dampened by how much clean tech you've deployed there.
-2. **Carbon cycle** — global emissions roll up, CO₂ updates via an airborne-fraction model (42% of emissions stay aloft), minus ocean uptake and land/capture-branch removals ([balance.js:17-19](../src/config/balance.js#L17-L19)).
+1. **BAU creep** — each country's baseline emissions grow by ~0.5%/yr, dampened by how much clean tech you've deployed there.
+2. **Carbon cycle** — global emissions roll up, CO₂ updates via an airborne-fraction model (42% of emissions stay aloft), minus ocean uptake and land/capture-branch removals (`airborneFraction` in [balance.js](../src/config/balance.js)).
 3. **Temperature** — chases a CO₂-driven equilibrium with lag (`tempPerDoublingCO2: 3.0`, `tempResponseLag: 0.04`).
 4. **Climate Points (currency)** — you earn `baseCPPerTick: 0.45` passively, plus bonuses from each Net-Zero country.
 5. **Adoption spread** — researched activities bleed from adopted countries to their neighbors at a rate of `0.017`, gated by political will and branch-specific resistance (petrostates resist energy/policy, agricultural resists land less).
@@ -16,7 +16,7 @@ Each tick, the sim runs this pipeline in order ([src/systems/](../src/systems/))
 7. **Event director rolls** — ~6.5% chance/tick for a passive event (with a 4-tick min gap), independent track for interactive decisions (~every 24 ticks), and an **IPCC report** forced every 16 ticks.
 8. **News ticker** rolls a flavor headline (rate-limited).
 9. **Collectable bubbles** pop up on the map (Plague-Inc style — click before they fade).
-10. **Scoring check** — peak temp, peak CO₂, and history are all recorded; win/loss evaluated ([Scoring.js:35](../src/model/Scoring.js#L35)).
+10. **Scoring check** — peak temp, peak CO₂, and history are all recorded; win/loss evaluated ([Scoring.js `evaluateOutcome`](../src/model/Scoring.js)).
 
 ## What you actually do as a player
 
@@ -31,16 +31,16 @@ Each tick, the sim runs this pipeline in order ([src/systems/](../src/systems/))
 ### 2. Earn Credits, spend on Research
 One research slot **per branch**, so up to **6 projects run in parallel**. Branches: Energy, Transport, Industry, Land, Capture, Policy. Each has 4 tiers:
 - **Tier 1**: 1–3 credits, ~15–25 seconds
-- **Tier 2**: 4–7 credits, ~45–60 seconds
-- **Tier 3**: 10–14 credits, ~2 minutes
-- **Tier 4**: 22–30 credits, ~4–5 minutes (the moonshots — Fusion, Maglev, Gigaton Capture, Planetary Treaty)
+- **Tier 2**: 4–8 credits, ~45–60 seconds
+- **Tier 3**: 10–13 credits, ~2 minutes
+- **Tier 4**: 22–30 credits, ~4–6 minutes (the moonshots — Fusion, Maglev, Gigaton Capture, Planetary Treaty)
 
 Credits are deliberately tight. Stockpiling feels like dragging — the design wants you choosing constantly.
 
 ### 3. Deploy researched activities into countries
 Click a country, pick a researched activity, pay the deploy cost. Adoption in that branch goes up. But:
 
-- **Diminishing returns per (country, activity)**: 1st deploy = 100% yield, 2nd = 65%, 3rd = 42%. Cap of 3 per pair. Cost also doubles each repeat. So the 3rd deploy gives ~10% the adoption-per-credit of the 1st. **Spread activities across countries; don't pile them into one nation.** ([balance.js:118-132](../src/config/balance.js#L118-L132))
+- **Diminishing returns per (country, activity)**: 1st deploy = 100% yield, 2nd = 65%, 3rd = 42%. Cap of 3 per pair. Cost also doubles each repeat. So the 3rd deploy gives ~10% the adoption-per-credit of the 1st. **Spread activities across countries; don't pile them into one nation.** (`deployDiminishingBase`, `deployMaxPerPair`, `deployCostEscalation` in [balance.js](../src/config/balance.js))
 - **Political will gates**: "Hard" deploys (mandates, taxes, phase-outs) check `willRequirement + willInfraModifier`. Petrostates add +20, industrial +8. Petrostates add a further +12 to policy, +8 to energy. Tech incentives have no gate — they pass on a signature.
 - Deploys spend some of that country's will.
 
@@ -48,11 +48,12 @@ Click a country, pick a researched activity, pay the deploy cost. Adoption in th
 A country hitting **≥80% average adoption across all 6 branches** flips to **Net Zero**. Net-Zero countries become permanent accelerators: they spread faster to their neighbors, and they boost your per-tick Credit income. This is your engine — you need a critical mass of Net-Zero countries for victory.
 
 ### 5. Grab collectables (Plague-Inc bubbles)
-Four types weighted toward high-emission countries (where the fight matters):
-- 🌱 Grassroots (60%): +3 CP, +4 local will
-- 🍃 ESG Shift (25%): +5 CP, +4% adoption in leading sector
-- ⭐ Climate Rally (12%): +8 CP, +6 local will, +4 neighbor will
-- 💎 Policy Breakthrough (3%): +14 CP, **30% off research for 4 ticks** — huge
+Five types weighted toward high-emission countries (where the fight matters):
+- 🌱 Grassroots (54%): +2 CP, +4 local will
+- 🌻 Garden Plot (8%): +1 CP, +3% Land adoption in spawn country
+- 🍃 ESG Shift (23%): +3 CP, +4% adoption in leading sector
+- ⭐ Climate Rally (12%): +5 CP, +6 local will, +4 neighbor will
+- 💎 Policy Breakthrough (3%): +8 CP, **30% off research for 4 ticks** — huge
 
 Max 2 on screen at once; they fade after 5 ticks.
 
@@ -70,7 +71,7 @@ Max 2 on screen at once; they fade after 5 ticks.
 
 Victory is **reversal-based**, not a score threshold. You have to actually turn the curve:
 
-**Standard win** ([Scoring.js:46-58](../src/model/Scoring.js#L46-L58)):
+**Standard win** ([Scoring.js](../src/model/Scoring.js)):
 - CO₂ dropped **≥8 ppm from its peak** (you're clearly past the top)
 - CO₂ ≤ **395 ppm**
 - Peak temperature ≤ **+2.1°C**
@@ -79,7 +80,7 @@ Victory is **reversal-based**, not a score threshold. You have to actually turn 
 **Perfect win** (S-tier):
 - CO₂ ≤ **360 ppm**, peak temp ≤ **+1.6°C**, **≥90%** Net Zero
 
-**Loss**: temperature hits **+4.0°C** — the Hothouse Earth cascade. Civilization can't adapt fast enough. Game over ([balance.js:164](../src/config/balance.js#L164)).
+**Loss**: temperature hits **+4.0°C** — the Hothouse Earth cascade. Civilization can't adapt fast enough. Game over ([`BALANCE.lossTempC`](../src/config/balance.js)).
 
 Final grade: **S** (≤350 ppm & ≤1.5°C) · **A** (≤375 & ≤1.7) · **B** (≤395 & ≤1.9) · **C** (≤420 & ≤2.3) · **D** anything worse.
 

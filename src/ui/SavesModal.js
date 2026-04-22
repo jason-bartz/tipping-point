@@ -80,12 +80,17 @@ function render(modal, { mode, state, onLoad }) {
   });
 
   list.querySelectorAll('.saves-save').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       if (!state) return;
       const slot = btn.dataset.slot;
       const row = btn.closest('.saves-row');
       if (row && !row.classList.contains('empty')) {
-        if (!window.confirm(`Overwrite this slot?`)) return;
+        const ok = await askConfirm({
+          title: 'Overwrite this slot?',
+          body: 'The existing save in this slot will be replaced.',
+          confirmLabel: 'Overwrite',
+        });
+        if (!ok) return;
       }
       if (saveToSlot(slot, state)) {
         render(modal, { mode, state, onLoad });
@@ -94,12 +99,58 @@ function render(modal, { mode, state, onLoad }) {
   });
 
   list.querySelectorAll('.saves-delete').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const slot = btn.dataset.slot;
-      if (!window.confirm('Delete this save? This can\'t be undone.')) return;
+      const ok = await askConfirm({
+        title: 'Delete this save?',
+        body: "This can't be undone.",
+        confirmLabel: 'Delete',
+        danger: true,
+      });
+      if (!ok) return;
       deleteSlot(slot);
       render(modal, { mode, state, onLoad });
     });
+  });
+}
+
+// Lightweight in-app confirm dialog. Returns a Promise<boolean>. Built to
+// match the Saves modal aesthetic so the overwrite / delete flows stay inside
+// the game's visual language instead of popping a native OS dialog.
+function askConfirm({ title, body, confirmLabel = 'Confirm', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.className = 'modal confirm-modal';
+    modal.innerHTML = `<div class="confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h3 id="confirm-title">${title}</h3>
+      ${body ? `<p>${body}</p>` : ''}
+      <div class="confirm-actions">
+        <button class="saves-action confirm-cancel" type="button">Cancel</button>
+        <button class="saves-action confirm-ok${danger ? ' is-danger' : ''}" type="button">${confirmLabel}</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+
+    const cleanup = teardownA11y => () => {
+      teardownA11y?.();
+      modal.remove();
+    };
+
+    const ok = modal.querySelector('.confirm-ok');
+    const cancel = modal.querySelector('.confirm-cancel');
+
+    const teardown = installModalA11y(modal.querySelector('.confirm-card'), {
+      onClose: () => { done(false); },
+      label: title,
+    });
+    const close = cleanup(teardown);
+    const done = (result) => { close(); resolve(result); };
+
+    ok.addEventListener('click', () => done(true));
+    cancel.addEventListener('click', () => done(false));
+    modal.addEventListener('click', (e) => { if (e.target === modal) done(false); });
+
+    ok.focus();
   });
 }
 

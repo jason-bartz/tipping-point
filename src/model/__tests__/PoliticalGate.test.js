@@ -3,7 +3,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { gate, effectiveThreshold, effectiveWillCost } from '../PoliticalGate.js';
-import { BALANCE } from '../../config/balance.js';
 
 function makeState(researched = []) {
   return {

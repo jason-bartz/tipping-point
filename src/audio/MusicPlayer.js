@@ -16,7 +16,6 @@ const ASSET_BASE = import.meta.env?.BASE_URL ?? '/';
 // URL-encode to survive the space in the filenames.
 const DEFAULT_TRACKS = [
   'Music/Beneath the Noise.wav',
-  'Music/Sunset Sky.wav',
 ].map((p) => encodeURI(`${ASSET_BASE}${p}`));
 
 const CROSSFADE_SEC = 2.5;   // overlap between consecutive tracks
@@ -209,6 +208,8 @@ export class MusicPlayer {
   // Plays `buffer` starting at audio-context time `startAt` with a fade-in of
   // `fadeInSec`. At `endAt - CROSSFADE_SEC` it queues the next track so the
   // two tracks' gains cross in the same window — a sample-accurate crossfade.
+  // Single-track playlists skip the crossfade and use native looping, since
+  // crossfading a track with itself phases audibly at the boundary.
   _schedulePlay(buffer, startAt, fadeInSec) {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -221,6 +222,21 @@ export class MusicPlayer {
     const fadeIn = Math.max(0.001, fadeInSec);
     gain.gain.setValueAtTime(0, startAt);
     gain.gain.linearRampToValueAtTime(1, startAt + fadeIn);
+
+    const soloLoop = this.tracks.length <= 1;
+    if (soloLoop) {
+      src.loop = true;
+      src.start(startAt);
+      this.activeSources.add(src);
+      src.onended = () => {
+        this.activeSources.delete(src);
+        try { src.disconnect(); } catch { /* ignore */ }
+        try { gain.disconnect(); } catch { /* ignore */ }
+      };
+      clearTimeout(this._scheduleTimer);
+      this._scheduleTimer = null;
+      return;
+    }
 
     const endAt = startAt + buffer.duration;
     const fadeOutStart = Math.max(startAt + fadeIn, endAt - CROSSFADE_SEC);

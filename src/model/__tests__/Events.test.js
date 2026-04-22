@@ -5,7 +5,7 @@
 //      references a valid op, touches valid fields, and survives a dry-run
 //      apply against a baseline state. Catches typos before they ship.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { applyEffect, applyEffects, matchesWhere } from '../Events.js';
 import { EVENT_POOL } from '../../data/events.js';
 import { BALANCE } from '../../config/balance.js';

@@ -14,7 +14,7 @@
 
 import { BALANCE } from '../config/balance.js';
 import { EVT } from '../core/EventBus.js';
-import { BRANCHES, ACTIVITIES } from '../data/activities.js';
+import { BRANCHES } from '../data/activities.js';
 import { rectFlag, isBlocFlag } from '../data/flags.js';
 import { projectDeploy } from '../model/DeployEconomy.js';
 import { gate as politicalGate } from '../model/PoliticalGate.js';
@@ -77,6 +77,22 @@ export class CountryPanel {
     return [...this.state.world.researched].sort().join(',');
   }
 
+  // Count of researched activities per branch that have NEVER been deployed
+  // in this country — i.e. "new and ready to deploy here". Powers the
+  // red notification badge on each sector tab.
+  _newByBranchForCountry(countryId) {
+    const s = this.state;
+    const byBranch = Object.fromEntries(Object.keys(BRANCHES).map(b => [b, 0]));
+    if (!countryId || !s.countries[countryId]) return byBranch;
+    const deploys = s.world.deployCount?.[countryId] ?? {};
+    for (const a of Object.values(s.activities)) {
+      if (!s.world.researched.has(a.id)) continue;
+      if ((deploys[a.id] ?? 0) > 0) continue;
+      if (byBranch[a.branch] !== undefined) byBranch[a.branch] += 1;
+    }
+    return byBranch;
+  }
+
   _legendHTML() {
     // Closed: nothing rendered inline (toggle lives in the panel header).
     // Open: a note card at the top of the scroll region.
@@ -109,6 +125,7 @@ export class CountryPanel {
     const s = this.state;
     const researched = Object.values(s.activities).filter(a => s.world.researched.has(a.id));
     const byBranch = Object.fromEntries(Object.keys(BRANCHES).map(b => [b, researched.filter(a => a.branch === b)]));
+    const newByBranch = this._newByBranchForCountry(this.selectedId);
 
     // Sector tabs — one chip per sector, shows icon + % + progress bar. Click
     // swaps the deploy list below. Keeps the tab strip above the fold so the
@@ -116,14 +133,17 @@ export class CountryPanel {
     const tabs = Object.entries(c.adoption).map(([k, v]) => {
       const pct = (v * 100).toFixed(0);
       const active = k === this.selectedSector;
-      const count = byBranch[k]?.length ?? 0;
+      const newCount = newByBranch[k] ?? 0;
+      const badgeLabel = `${newCount} new ${newCount === 1 ? 'tech' : 'techs'} ready to deploy in ${c.name}`;
       return `<button class="sector-tab ${active ? 'active' : ''}" data-sector="${k}" style="--c:${BRANCHES[k].color}" title="${BRANCHES[k].label} · ${pct}% · ${BRANCH_EXPLAIN[k]}" aria-pressed="${active}">
         <span class="sector-tab-head">
           <span class="sector-tab-icon" style="color:${BRANCHES[k].color}">${BRANCHES[k].icon}</span>
           <span class="sector-tab-label">${BRANCHES[k].label}</span>
-          ${count > 0 ? `<span class="sector-tab-count" title="${count} deployable">${count}</span>` : ''}
         </span>
-        <span class="sector-tab-pct">${pct}%</span>
+        <span class="sector-tab-stats">
+          <span class="sector-tab-pct">${pct}%</span>
+          <span class="sector-tab-new-badge" data-count="${newCount}" title="${badgeLabel}" aria-label="${badgeLabel}">${newCount}</span>
+        </span>
         <span class="sector-tab-track" aria-hidden="true"><span class="sector-tab-fill" style="width:${pct}%;background:${BRANCHES[k].color}"></span></span>
       </button>`;
     }).join('');
@@ -360,7 +380,8 @@ export class CountryPanel {
     const c = this.state.countries[this.selectedId];
     if (!c) return;
 
-    // Patch sector-tab percentages + progress bars in place.
+    // Patch sector-tab percentages + progress bars + new-deploy badges in place.
+    const newByBranch = this._newByBranchForCountry(this.selectedId);
     for (const tabEl of this.root.querySelectorAll('.sector-tab[data-sector]')) {
       const k = tabEl.dataset.sector;
       const v = c.adoption[k] ?? 0;
@@ -369,6 +390,15 @@ export class CountryPanel {
       if (fill) fill.style.width = `${pct}%`;
       const pctEl = tabEl.querySelector('.sector-tab-pct');
       if (pctEl) pctEl.textContent = `${pct}%`;
+      const badge = tabEl.querySelector('.sector-tab-new-badge');
+      if (badge) {
+        const n = newByBranch[k] ?? 0;
+        badge.dataset.count = String(n);
+        badge.textContent = String(n);
+        const label = `${n} new ${n === 1 ? 'tech' : 'techs'} ready to deploy in ${c.name}`;
+        badge.title = label;
+        badge.setAttribute('aria-label', label);
+      }
     }
 
     // Patch the currently-visible sector detail header.

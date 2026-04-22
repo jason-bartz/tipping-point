@@ -21,11 +21,30 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // 'hidden' generates sourcemaps for Sentry / local debugging but omits the
+    // //# sourceMappingURL comment, so browsers don't auto-fetch them on view.
+    // The .map files still land in dist/ — upload them to Sentry with the CLI
+    // (`sentry-cli sourcemaps upload ...`) and/or strip them from the deploy.
+    sourcemap: 'hidden',
     target: 'es2020',
     rollupOptions: {
       input: {
         main: 'index.html',
+      },
+      output: {
+        // Split the geo/map vendors into their own chunk so game-code edits
+        // don't invalidate the ~150 KB of d3-geo + topojson-client + atlas
+        // data. They rarely change; client caches get mileage out of this.
+        manualChunks(id) {
+          if (id.includes('node_modules/d3-geo')
+            || id.includes('node_modules/d3-selection')
+            || id.includes('node_modules/d3-array')
+            || id.includes('node_modules/topojson-client')
+            || id.includes('node_modules/world-atlas')) {
+            return 'vendor-geo';
+          }
+          return undefined;
+        },
       },
       plugins: analyze
         ? [

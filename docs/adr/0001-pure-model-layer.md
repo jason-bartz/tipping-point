@@ -35,6 +35,12 @@ Current modules:
 - `model/DeployEconomy.js` — diminishing returns + synergy composition
 - `model/PoliticalGate.js` — will-gate verdict
 - `model/Events.js` — declarative effect execution (see ADR 0002)
+- `model/EffectsSummary.js` — human-readable preview of an effects array
+- `model/Advisors.js` — mood, agenda, influence math
+- `model/Achievements.js` — unlock-condition evaluation
+- `model/Dispatches.js` — persistent notification log helpers
+- `model/Forestry.js` — forest health + carbon-liability accrual
+- `model/Government.js` — incumbent/shadow succession math
 
 Systems are now near-trivial. `CarbonSystem.step()` is ~10 lines: call four pure functions from `model/Climate.js`, assign the results.
 
@@ -59,4 +65,4 @@ Systems are now near-trivial. `CarbonSystem.step()` is ~10 lines: call four pure
 ## Future work
 
 - Add an ESLint rule (or dependency-cruiser config) that enforces the layering: `model/` can't import from `systems/` or `ui/`, `data/` can't import from anything under `src/` except `config/`.
-- Move `systems/helpers.js` (a thin re-export shim) out once all UI imports move to `model/Economy.js` directly.
+- Retire the remaining `systems/helpers.js` re-export (`researchCostFor`) once UI imports point at `model/Economy.js` directly. `formatSeconds` will keep its home there — it's a render helper, not a model function.

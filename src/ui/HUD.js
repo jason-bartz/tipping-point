@@ -156,6 +156,6 @@ export class HUD {
     if (delta > threshold)       { sym = '↑'; cls = higherIsBad ? 'trend-up' : 'trend-down'; }
     else if (delta < -threshold) { sym = '↓'; cls = higherIsBad ? 'trend-down' : 'trend-up'; }
     el.textContent = sym;
-    el.className = 'trend-arrow ' + cls;
+    el.className = `trend-arrow ${  cls}`;
   }
 }

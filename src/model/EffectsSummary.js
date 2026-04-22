@@ -39,7 +39,7 @@ function signNum(n, decimals = 0) {
 function signPct(n) {
   // n is a fraction 0.04 → "+4%"
   const pct = Math.round(n * 100 * 10) / 10;   // round to 0.1%
-  return signNum(pct, pct % 1 === 0 ? 0 : 1) + '%';
+  return `${signNum(pct, pct % 1 === 0 ? 0 : 1)  }%`;
 }
 
 // Describe a `where` clause ("6 petrostates", "service/industrial countries", etc.).

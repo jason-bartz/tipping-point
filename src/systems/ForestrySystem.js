@@ -19,7 +19,7 @@ import { logDispatch } from '../model/Dispatches.js';
 // hit goes to the target country; when it's global, it splits across all
 // countries with governments so nobody is let off the hook for a global
 // megafire season.
-const WILDFIRE_EVENT_IDS = new Set(['wildfire', 'wildfire_local', 'wildfire_smog']);
+const WILDFIRE_EVENT_IDS = new Set(['wildfire', 'wildfire_local', 'wildfire_smog', 'wildfire_disaster']);
 
 export class ForestrySystem {
   constructor(state, bus) {

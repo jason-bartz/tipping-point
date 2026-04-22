@@ -5,7 +5,7 @@
 
 ## Context
 
-`src/data/events.js` ships ~50 random/interactive events. Early versions defined each outcome as an imperative lambda:
+`src/data/events.js` ships ~160 random/interactive/IPCC events. Early versions defined each outcome as an imperative lambda:
 
 ```js
 apply: (s) => {
@@ -50,7 +50,7 @@ We keep `apply` as an escape hatch for the handful of events that are genuinely 
 **Positive**
 
 - Event authoring is pure data. Adding a new event ≈ writing JSON.
-- **194 unit tests** (one per event × effects-array) auto-generate and assert each effects list runs cleanly against a baseline state. A typo like `addWorrld` or `adoption.engery` trips CI before merge.
+- Hundreds of auto-generated unit tests (one per event × effects-array) assert each effects list runs cleanly against a baseline state. A typo like `addWorrld` or `adoption.engery` trips CI before merge.
 - A future event-preview UI ("this event will cost 5 Credits and raise stress") is mechanical: walk the same array.
 - Difficulty sliders are trivial to layer: a future "hard mode" scales every `value` by 1.2 without touching engine code.
 - Save-replay determinism holds even more tightly: no closures in event data.

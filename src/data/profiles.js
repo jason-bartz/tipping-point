@@ -137,7 +137,7 @@ export const DIFFICULTY_LABEL = { easy: 'EASY', med: 'MEDIUM', hard: 'HARD', vha
 
 // Per-country starting adoption reflects real-world climate progress as of
 // the mid-2020s. Derived from infra profile with country-specific overrides.
-export const STARTING_ADOPTION_BY_INFRA = {
+const STARTING_ADOPTION_BY_INFRA = {
   service:      { energy: 0.12, transport: 0.10, industry: 0.08, land: 0.05, capture: 0.02, policy: 0.12 },
   industrial:   { energy: 0.10, transport: 0.05, industry: 0.10, land: 0.04, capture: 0.02, policy: 0.08 },
   petrostate:   { energy: 0.02, transport: 0.03, industry: 0.04, land: 0.03, capture: 0.02, policy: 0.02 },
@@ -145,7 +145,7 @@ export const STARTING_ADOPTION_BY_INFRA = {
   agricultural: { energy: 0.05, transport: 0.03, industry: 0.04, land: 0.12, capture: 0.01, policy: 0.04 },
 };
 
-export const COUNTRY_STARTING_OVERRIDES = {
+const COUNTRY_STARTING_OVERRIDES = {
   NDC: { energy:  0.12, policy:  0.08, transport:  0.04 },
   DEU: { energy:  0.10, transport: 0.04 },
   FRA: { energy:  0.15, policy:  0.04 },

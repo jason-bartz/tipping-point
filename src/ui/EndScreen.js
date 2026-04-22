@@ -146,7 +146,10 @@ export function showEndScreen(state, payload, won, { onAgain } = {}) {
   });
 
   document.getElementById('game').classList.remove('active');
-  document.getElementById('end-screen').classList.add('active');
+  const endScreen = document.getElementById('end-screen');
+  endScreen.classList.add('active');
+  endScreen.classList.toggle('state-won', !!won);
+  endScreen.classList.toggle('state-lost', !won);
 
   // Ceremony on wins. The grade reveals on a small delay so the stats land
   // first; confetti rains; S/A get an extra beat.

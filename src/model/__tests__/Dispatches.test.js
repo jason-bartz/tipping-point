@@ -3,7 +3,7 @@
 // bookkeeping has to stay airtight — silent drift here means the tab
 // badge pulses forever or, worse, "Decide" buttons go nowhere.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   logDispatch,
   markRead,

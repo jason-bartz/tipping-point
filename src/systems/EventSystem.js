@@ -127,8 +127,17 @@ export class EventSystem {
     const forced = ticksSince >= (BALANCE.interactiveMaxGapTicks ?? Infinity);
     if (!forced && rng.random() > (BALANCE.interactiveChancePerTick ?? 0)) return false;
 
+    // Disaster cadence: disasters (hero-image modal events) ride this track
+    // but carry a separate min-gap so they can't stack. If the last disaster
+    // fired inside the window, filter the whole disaster pool out for this
+    // roll — non-disaster interactives still surface normally.
+    const lastDisasterTick = s.meta.lastDisasterTick ?? -999;
+    const disasterGap = BALANCE.disasterMinGapTicks ?? 0;
+    const disastersBlocked = (s.meta.tick - lastDisasterTick) < disasterGap;
+
     const eligible = EVENT_POOL.filter(e => {
       if (!e.interactive) return false;
+      if (e.disaster && disastersBlocked) return false;
       if (e.guard && !e.guard(s)) return false;
       if (e.target && !e.target(s, rng)) return false;
       return true;
@@ -209,6 +218,7 @@ export class EventSystem {
     }
 
     s.meta.lastEventTick = s.meta.tick;
+    if (chosen.disaster) s.meta.lastDisasterTick = s.meta.tick;
     if (isInteractiveTrack) {
       s.meta.lastInteractiveTick = s.meta.tick;
       // Record on the recency ring buffer so the next roll can avoid a
@@ -390,7 +400,7 @@ export class EventSystem {
 // `_advisorStances` shape EventModal renders — pulling name/portrait/color
 // from the live seat data — and attach `_advisorHint` to any choice an advisor
 // `supports`. Choices are cloned before mutation so we don't poison the pool.
-export function enrichAdvisorStances(state, evt) {
+function enrichAdvisorStances(state, evt) {
   const spec = evt.advisorStances;
   if (!spec?.length) return;
   const seats = state.advisors?.seats;

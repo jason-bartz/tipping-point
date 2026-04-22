@@ -4,9 +4,8 @@
 // keep working.
 
 import { BALANCE } from '../config/balance.js';
-import { deployCost, researchCost } from '../model/Economy.js';
+import { researchCost } from '../model/Economy.js';
 
-export const deployCostFor   = deployCost;
 export const researchCostFor = researchCost;
 
 // Ticks → human-readable seconds at current speed. Uses ceil so the countdown
