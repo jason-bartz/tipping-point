@@ -6,3 +6,8 @@ dist
 
 # Coverage
 coverage
+
+# Local env (Vercel project settings hold the real values)
+.env
+.env.local
+.env.*.local

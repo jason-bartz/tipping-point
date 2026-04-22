@@ -9,6 +9,7 @@ import { Rng } from '../core/Random.js';
 import { COUNTRIES } from '../data/countries.js';
 import { ADVISOR_IDS } from '../data/advisors.js';
 import { resolveAdvisor } from '../model/Advisors.js';
+import { captureError } from '../telemetry/sentry.js';
 
 const STORAGE_KEY = 'tipping-point.save.v1';
 const SCHEMA = 1;
@@ -203,6 +204,7 @@ export function save(state) {
     return true;
   } catch (err) {
     console.warn('[save] failed:', err);
+    captureError(err, { area: 'save', slot: 'auto', quotaExceeded: isQuotaError(err) });
     return false;
   }
 }
@@ -214,8 +216,15 @@ export function load() {
     return deserialize(JSON.parse(raw));
   } catch (err) {
     console.warn('[load] failed:', err);
+    captureError(err, { area: 'load', slot: 'auto' });
     return null;
   }
+}
+
+function isQuotaError(err) {
+  if (!err) return false;
+  const name = err.name || '';
+  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
 }
 
 export function clearSave() {
@@ -240,6 +249,7 @@ export function saveToSlot(slotId, state) {
     return true;
   } catch (err) {
     console.warn('[save] slot write failed:', slotId, err);
+    captureError(err, { area: 'save', slot: slotId, quotaExceeded: isQuotaError(err) });
     return false;
   }
 }
@@ -253,6 +263,7 @@ export function loadFromSlot(slotId) {
     return deserialize(JSON.parse(raw));
   } catch (err) {
     console.warn('[save] slot read failed:', slotId, err);
+    captureError(err, { area: 'load', slot: slotId });
     return null;
   }
 }

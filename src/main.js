@@ -1,6 +1,13 @@
 // Entry point. Wires data → state → systems → UI together and owns the
 // one-line game-lifecycle: country-select → game → end-screen → (back).
 
+import { initSentry, captureError, SentryReporter } from './telemetry/sentry.js';
+import { install as installTelemetry, setReporter } from './telemetry/index.js';
+
+// First thing on the page. Auto-binds window.onerror + unhandledrejection.
+// No-op when VITE_SENTRY_DSN is unset.
+initSentry();
+
 import './styles/main.css';
 // Bundle TopoJSON world atlas so there's no network dep for the map.
 // Vite handles JSON imports out of the box; no import attribute needed.
@@ -124,6 +131,7 @@ function startGame(state) {
     worldMap = new WorldMap(mapContainer, state, bus, topoData);
   } catch (err) {
     console.error('[map] init failed:', err);
+    captureError(err, { area: 'map-init', homeCountryId: state.meta.homeCountryId });
     showMapError(mapContainer, err);
     return;
   }
@@ -394,6 +402,11 @@ function startGame(state) {
   // Autosave.
   const autoSave = installAutoSave(state, bus, { intervalMs: 20000 });
 
+  // Telemetry. Sentry is the prod reporter (no-op without a DSN); dev
+  // sessions with ?debug=1 auto-fall back to ConsoleReporter.
+  if (import.meta.env.VITE_SENTRY_DSN) setReporter(SentryReporter);
+  const removeTelemetry = installTelemetry(bus, state);
+
   // Achievements — installed after the core bus listeners so unlocks can
   // react to bus activity already being wired. `onUnlock` surfaces a toast
   // and badges the HUD button.
@@ -428,6 +441,7 @@ function startGame(state) {
   teardown = () => {
     loop.stop();
     autoSave.stop();
+    removeTelemetry?.();
     removeAchievements?.();
     removeKeys();
     music.stop();

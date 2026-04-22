@@ -22,6 +22,7 @@
   "dependencies": {
     "@fontsource/press-start-2p": "^5.2.7",
     "@fontsource/vt323": "^5.2.7",
+    "@sentry/browser": "^10.49.0",
     "d3-geo": "^3.1.1",
     "d3-selection": "^3.0.0",
     "topojson-client": "^3.1.0",
