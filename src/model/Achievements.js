@@ -94,6 +94,12 @@ function allCountriesNetZero(state) {
 }
 
 // Install listeners. Returns a teardown.
+/**
+ * @param {any} state
+ * @param {{ on: (t: string, fn: (p: any) => void) => () => void }} bus
+ * @param {{ EVT: Record<string, string> }} ctx
+ * @param {{ onUnlock?: (def: { id: string, title: string, desc: string }) => void }} [opts]
+ */
 export function installAchievements(state, bus, { EVT }, { onUnlock } = {}) {
   const progress = ensureProgressSlot(state);
   const unlocked = loadUnlocked();

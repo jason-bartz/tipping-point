@@ -10,9 +10,15 @@ import { describe, it, expect } from 'vitest';
 import { deserialize, serialize } from '../saveLoad.js';
 import { COUNTRIES } from '../../data/countries.js';
 
-// Use the node filesystem to load the JSON fixture rather than an `import`
-// with `assert { type: json }` — keeps us vite-agnostic under vitest.
-import preV4 from './fixtures/save-v1-pre-population.json' with { type: 'json' };
+// Load the JSON fixture from disk rather than using an `import ... with
+// { type: 'json' }` attribute — keeps both ESLint's parser and vitest happy
+// under bun without needing a separate parser plugin.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+const preV4 = JSON.parse(readFileSync(
+  fileURLToPath(new URL('./fixtures/save-v1-pre-population.json', import.meta.url)),
+  'utf8',
+));
 
 describe('save schema v1 — backfill for pre-population saves', () => {
   it('deserializes without error', () => {
